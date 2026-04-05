@@ -1,0 +1,21 @@
+const router = require("express").Router();
+const { protect } = require("../middleware/auth.middleware");
+
+const {
+    getUsers,
+    getStats,
+    updateUserPlan,
+    publishGrant,
+    updateLink,
+    getLink
+} = require("../controllers/admin.controller");
+
+// 🔒 Admin only (add role check later)
+router.get("/users", getUsers);
+router.get("/stats", protect, getStats);
+router.put("/users/:id/plan", protect, updateUserPlan);
+router.put("/grants/:id/publish", protect, publishGrant);
+router.post('/updateLink',updateLink)
+router.get('/getUrlLink',getLink);
+
+module.exports = router;
