@@ -9,6 +9,6 @@ mongoose.connect("mongodb://grant_user:Pankaj%40123456@ac-0z3u6qk-shard-00-00.3l
     .then(() => console.log("✅ DB Connected"))
     .catch(err => console.error("❌ DB Error:", err.message));
 
-app.listen(5000, () => {
-    console.log("🚀 Server running on port 5000");
+app.listen(7000, () => {
+    console.log("🚀 Server running on port 7000");
 });
