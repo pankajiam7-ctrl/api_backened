@@ -781,8 +781,10 @@ function isGrantAllowed(g) {
 // MAIN SCRAPER CONTROLLER
 // =========================
 
+
 exports.createGrantScrap = async (req, res) => {
 
+    // ✅ Static URLs
     const urls = [
         "https://business.gov.au/grants-and-programs/inland-river-flood-event-freight-subsidy-sa",
         "https://www.ihfc.co.in/important-announcements/medtech-revolution-starts-here/"
@@ -793,59 +795,86 @@ exports.createGrantScrap = async (req, res) => {
     let browser;
 
     try {
+
+        // 🔥 STEP 0: Fetch dynamic URLs from API
+        try {
+            const apiRes = await axios.get("http://13.60.188.34:7777/api/admin/getUrlLink");
+
+            const dynamicUrls = apiRes.data.flatMap(item =>
+                item.links
+                    .map(link => link.replace(/,$/, "").trim()) // remove trailing comma
+                    .filter(link => link.startsWith("http"))
+            );
+
+            // merge static + dynamic
+            urls.push(...dynamicUrls);
+
+            // remove duplicates
+            const uniqueUrls = [...new Set(urls)];
+            urls.length = 0;
+            urls.push(...uniqueUrls);
+
+            console.log("🌐 Total URLs:", urls.length);
+
+        } catch (err) {
+            console.error("❌ Failed to fetch dynamic URLs:", err.message);
+        }
+
+        // 🚀 Launch browser
         browser = await puppeteer.launch({
             headless: "new",
             args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
         });
 
+        // 🔁 Loop all URLs
         for (let url of urls) {
             try {
+
                 const domain = new URL(url).hostname;
                 if (SKIP_DOMAINS.some(d => domain.includes(d))) {
-                    console.log(`\n⏭ Skipping (login required): ${url}`);
+                    console.log(`⏭ Skipping: ${url}`);
                     continue;
                 }
 
-                console.log(`\n🌐 Fetching: ${url}`);
+                console.log(`🌐 Fetching: ${url}`);
 
-                // STEP 1: Fetch
+                // STEP 1: Fetch page
                 const { text: rawText, rawHtml, links } = await fetchPageText(url, browser);
 
                 if (!rawText || rawText.length < 300) {
-                    console.log(`  ⚠ Skipping (insufficient text): ${url}`);
+                    console.log(`⚠ Skipping (low content): ${url}`);
                     continue;
                 }
 
                 const mainText = cleanText(rawText);
 
-                // STEP 2: Extract from visible text + hidden HTML
+                // STEP 2: Extract
                 let detectedDeadline = extractDeadline(mainText) || extractHiddenDates(rawHtml);
                 let detectedAmount = extractAmount(mainText);
 
-                console.log(`  📅 Main page deadline: ${detectedDeadline || "NOT FOUND"}`);
-                console.log(`  💰 Main page amount:   ${detectedAmount || "NOT FOUND"}`);
-
-                // STEP 3: Deep crawl sub-links if still missing
+                // STEP 3: Deep crawl
                 if (!detectedDeadline || !detectedAmount) {
-                    console.log(`  🔍 Deep crawling ${links.length} sub-links...`);
-                    const deepResult = await deepCrawlForMissingFields(links, browser, detectedDeadline, detectedAmount);
+                    const deepResult = await deepCrawlForMissingFields(
+                        links,
+                        browser,
+                        detectedDeadline,
+                        detectedAmount
+                    );
                     detectedDeadline = deepResult.deadline;
                     detectedAmount = deepResult.amount;
                 }
 
-                console.log(`  📅 Final deadline: ${detectedDeadline || "NOT FOUND"}`);
-                console.log(`  💰 Final amount:   ${detectedAmount || "NOT FOUND"}`);
-
-                // STEP 4: Delay before OpenAI call
+                // STEP 4: Delay
                 await sleep(OPENAI_DELAY_MS);
 
-                // STEP 5: Call OpenAI
+                // STEP 5: OpenAI
                 const prompt = buildPrompt(mainText, detectedDeadline, detectedAmount);
+
                 let content;
                 try {
                     content = await callOpenAIWithRetry(prompt);
-                } catch (aiErr) {
-                    console.error(`  ❌ OpenAI failed for ${url}:`, aiErr.message);
+                } catch (err) {
+                    console.error(`❌ OpenAI failed: ${url}`);
                     continue;
                 }
 
@@ -856,7 +885,6 @@ exports.createGrantScrap = async (req, res) => {
                 try {
                     grants = JSON.parse(content);
                 } catch {
-                    console.log("  ❌ JSON parse failed — salvaging...");
                     const match = content.match(/\[[\s\S]*\]/);
                     if (match) {
                         try { grants = JSON.parse(match[0]); } catch { continue; }
@@ -865,24 +893,18 @@ exports.createGrantScrap = async (req, res) => {
 
                 if (!Array.isArray(grants)) continue;
 
-                // STEP 7: Filter + map to schema shape
+                // STEP 7: Transform
                 const filtered = grants
                     .filter(g => isGrantAllowed(g))
                     .map(g => {
-                        const gptDeadline = g.deadline;
-                        const deadlineIsEmpty =
-                            !gptDeadline ||
-                            gptDeadline.trim() === "" ||
-                            /^null$/i.test(gptDeadline.trim()) ||
-                            /not\s*found/i.test(gptDeadline.trim());
 
-                        const resolvedDeadline = deadlineIsEmpty ? detectedDeadline : gptDeadline;
+                        const resolvedDeadline = g.deadline || detectedDeadline;
                         const resolvedAmount = g.amount || detectedAmount || null;
+
                         const parsedDeadline = resolvedDeadline ? new Date(resolvedDeadline) : null;
                         const isValidDate = parsedDeadline && !isNaN(parsedDeadline);
 
                         return {
-                            // Raw source of truth
                             raw: {
                                 grant_name: g.grant_name,
                                 deadline: resolvedDeadline || null,
@@ -894,34 +916,28 @@ exports.createGrantScrap = async (req, res) => {
                                 source_url: url,
                             },
 
-                            // Core fields
                             title: g.grant_name,
                             donor: g.donor_agency || "Unknown",
                             category: "grant",
 
-                            // Geography
                             geography: {
                                 region: g.region || null,
                                 region_normalized: g.region ? g.region.toLowerCase().trim() : null,
                             },
 
-                            // Financials
                             financials: {
                                 raw: resolvedAmount,
-                                maxAmount: null, // parse separately if needed
+                                maxAmount: null,
                                 currency: "Unknown",
                             },
 
-                            // Timeline
                             deadline: isValidDate ? parsedDeadline : null,
                             status: g.status || "active",
                             isOpen: true,
 
-                            // Content
                             eligibility: g.eligibility || null,
                             shortDescription: g.short_description || null,
 
-                            // Search
                             searchText: [g.grant_name, g.donor_agency, g.region, g.eligibility]
                                 .filter(Boolean)
                                 .join(" ")
@@ -929,20 +945,21 @@ exports.createGrantScrap = async (req, res) => {
                         };
                     });
 
-                // STEP 8: Deduplicate by grant name
+                // STEP 8: Deduplicate
                 const uniqueMap = new Map();
                 filtered.forEach(g => uniqueMap.set(g.title.toLowerCase().trim(), g));
                 const uniqueGrants = Array.from(uniqueMap.values());
 
                 finalResults.push(...uniqueGrants);
-                console.log(`  ✅ ${uniqueGrants.length} grants extracted from ${url}`);
+
+                console.log(`✅ ${uniqueGrants.length} grants from ${url}`);
 
             } catch (err) {
-                console.error(`❌ Error processing ${url}:`, err.message);
+                console.error(`❌ Error: ${url}`, err.message);
             }
         }
 
-        // STEP 9: Save to DB
+        // STEP 9: Save DB
         if (finalResults.length > 0) {
             await Grant.bulkWrite(
                 finalResults.map(g => ({
@@ -953,7 +970,6 @@ exports.createGrantScrap = async (req, res) => {
                     }
                 }))
             );
-            console.log(`\n💾 Saved ${finalResults.length} grants to DB`);
         }
 
         return res.json({
@@ -969,7 +985,6 @@ exports.createGrantScrap = async (req, res) => {
         if (browser) await browser.close();
     }
 };
-
 
 // =========================
 // 🔥 GRANTS DETAIL CONTROLLER
