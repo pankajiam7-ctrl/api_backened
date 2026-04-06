@@ -802,7 +802,7 @@ exports.createGrantScrap = async (req, res) => {
 
             const dynamicUrls = apiRes.data.flatMap(item =>
                 item.links
-                    .map(link => link.replace(/,$/, "").trim()) // remove trailing comma
+                    .map(link => link.replace(/,$/, "").trim())
                     .filter(link => link.startsWith("http"))
             );
 
@@ -820,10 +820,16 @@ exports.createGrantScrap = async (req, res) => {
             console.error("❌ Failed to fetch dynamic URLs:", err.message);
         }
 
-        // 🚀 Launch browser
+        // 🚀 Launch browser (✅ FIXED HERE)
         browser = await puppeteer.launch({
-            headless: "new",
-            args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+            executablePath: "/usr/bin/chromium-browser", // 👈 IMPORTANT FIX
+            headless: true,
+            args: [
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu"
+            ]
         });
 
         // 🔁 Loop all URLs
