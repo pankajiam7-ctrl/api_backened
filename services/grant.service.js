@@ -5,45 +5,36 @@ const openai = new OpenAI({
 });
 
 async function processGrant(grant) {
-    try {
-        const response = await openai.chat.completions.create({
-            model: "gpt-4.1-mini",
-            messages: [
-                {
-                    role: "system",
-                    content: `You are a senior grant analyst and proposal writer.
+    const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+            {
+                role: "system",
+                content: `You are a senior grant analyst and proposal writer.
+Your job is to analyze grant data and return a structured JSON response.
+You MUST always populate every field — empty arrays are NOT acceptable.
+Use your knowledge of geography and grant themes to infer all values.`
+            },
+            {
+                role: "user",
+                content: buildPrompt(grant)
+            }
+        ],
+        temperature: 0.3,
+        max_tokens: 3000,
+        response_format: { type: "json_object" }
+    });
 
-You generate HIGHLY DETAILED, DONOR-READY proposals similar to UN, World Bank, and large NGO submissions.
-
-STRICT RULES:
-- Never generate short or generic content
-- Always include numbers, statistics, and measurable impact
-- Use professional, persuasive language
-- Fill ALL fields (no empty arrays or empty strings)`
-                },
-                {
-                    role: "user",
-                    content: buildPrompt(grant)
-                }
-            ],
-            temperature: 0.2,
-            max_tokens: 7000,
-            response_format: { type: "json_object" }
-        });
-
-        const parsed = JSON.parse(response.choices[0].message.content);
-        return validateAndClean(parsed, grant);
-
-    } catch (error) {
-        console.error("OpenAI Error:", error.message);
-        return fallbackResponse(grant);
-    }
+    const parsed = JSON.parse(response.choices[0].message.content);
+    return validateAndClean(parsed, grant);
 }
 
-/* ─── Prompt builder ───────────────────────────────────────── */
+/* ─── Prompt builder ──────────────────────────────────────────────────────── */
 function buildPrompt(grant) {
-    return `
-Analyze this grant and generate a COMPLETE, HIGH-QUALITY proposal.
+   return `
+Analyze this grant and generate a HIGH-QUALITY, DONOR-READY proposal in JSON format.
+
+The output must be extremely detailed, persuasive, and similar to UN / World Bank / large NGO proposals.
 
 GRANT INPUT:
 - Name: ${grant.grant_name}
@@ -53,7 +44,7 @@ GRANT INPUT:
 - Eligibility: ${grant.eligibility}
 - Description: ${grant.short_description}
 
-RETURN JSON:
+RETURN THIS EXACT JSON STRUCTURE:
 {
   "country": [],
   "region_normalized": "",
@@ -62,6 +53,7 @@ RETURN JSON:
   "focus_area": [],
   "proposal_title": "",
   "short_description": "",
+  "long_description": "",
   "amount": "",
 
   "executive_summary": "",
@@ -87,128 +79,209 @@ RETURN JSON:
         "total": ""
       }
     ]
-  },
-  "project_timeline": "",
-  "expected_impact": "",
-  "monitoring_evaluation": "",
-  "sustainability": "",
-  "conclusion": ""
+  }
 }
 
-CONTENT RULES:
-- executive_summary: 250+ words
-- problem_statement: 500+ words with statistics
-- objectives: 5–7 measurable points
-- methodology: each phase detailed
-- budget: realistic numbers
-- expected_impact: measurable KPIs
-- sustainability: long-term impact
+RULES FOR EACH FIELD:
 
-STRICT:
+"country"
+- Array of country names (never empty)
+- Convert region → country (e.g. Maharashtra → India)
+
+"region_normalized"
+- Lowercase standardized region
+
+"donor_agency"
+- Full official funding organization name
+
+"donor_agency_normalized"
+- Short recognizable name (e.g. World Bank, USAID)
+
+"focus_area"
+- 4 to 6 highly specific thematic areas
+- Use domain-specific terms only
+- Never empty
+
+"proposal_title"
+- 15–20 words
+- Highly compelling and donor-focused
+
+"short_description"
+- 200–300 words
+- Include problem, solution, beneficiaries, funding need, expected impact
+
+"long_description"
+- 3000 to 5000 words (VERY IMPORTANT – HIGH DETAIL)
+- Must read like a real international funding proposal
+
+MANDATORY STRUCTURE:
+
+1. Executive Summary (300–400 words)
+2. Background & Context (400–500 words)
+3. Problem Analysis (500–700 words with statistics %)
+4. Objectives (6–8 SMART measurable goals)
+5. Target Beneficiaries (300–400 words with numbers)
+6. Proposed Solution (400–500 words)
+7. Implementation Plan (600–800 words)
+   - Phase 1 to Phase 4
+   - Activities, timelines, stakeholders
+8. Monitoring & Evaluation (300–400 words)
+   - KPIs, baseline, midline, endline
+9. Expected Outcomes (300–400 words with measurable impact)
+10. Risk Assessment (200–300 words)
+11. Sustainability Plan (300–400 words)
+12. Conclusion (200–300 words)
+
+WRITING STYLE:
+- Highly professional (UN-level)
+- Strong storytelling + persuasive tone
+- Include numbers everywhere (%, beneficiaries, projections)
+- Avoid generic text
+
+"amount"
+- Extract from input
+- If missing → "Not specified"
+
+"budget"
+- Provide realistic financial planning
+- Duration: 24–36 months
+- Include 5 to 6 categories:
+  - Program Implementation
+  - Training & Capacity Building
+  - Operations & Staffing
+  - Monitoring & Evaluation
+  - Technology / Infrastructure
+  - Administration
+- Use real numeric values (NOT %)
+- Distribute across Year 1, Year 2, Year 3
+- Ensure totals match total_amount
+- total_amount should align with grant amount
+
+GLOBAL RULES:
 - No empty arrays
-- No empty strings
-- Include numbers everywhere
+- No empty fields
+- Do not shorten content
+- Maintain depth and richness
 
+CRITICAL:
 Return ONLY JSON.
+No markdown.
+No explanation.
 `;
 }
 
-/* ─── Validation ───────────────────────────────────────── */
+/* ─── Post-processing: validate every field, never return empty arrays ─────── */
 function validateAndClean(result, grant) {
 
-    if (!Array.isArray(result.country) || result.country.length === 0) {
-        result.country = extractCountryFromText(grant.region, grant);
+    // country — must be non-empty array of strings
+    if (!Array.isArray(result.country) || result.country.length === 0 ||
+        result.country.every(c => !c || c.trim() === "")) {
+        const regionText = result.region_normalized || grant.region || ""
+        result.country = extractCountryFromText(regionText, grant)
     }
 
-    if (!Array.isArray(result.focus_area) || result.focus_area.length === 0) {
-        result.focus_area = extractFocusFromText(grant);
+    // focus_area — must be non-empty array of strings
+    if (!Array.isArray(result.focus_area) || result.focus_area.length === 0 ||
+        result.focus_area.every(f => !f || f.trim() === "")) {
+        result.focus_area = extractFocusFromText(grant)
     }
 
-    if (!Array.isArray(result.objectives) || result.objectives.length === 0) {
-        result.objectives = [
-            "Increase income levels by 30%",
-            "Improve financial inclusion access",
-            "Strengthen community resilience",
-            "Enhance skills and employability",
-            "Promote gender equality"
-        ];
-    }
+    // Sanitize all string fields
+    result.region_normalized       = (result.region_normalized       || grant.region       || "").toLowerCase().trim()
+    result.donor_agency            =  result.donor_agency            || grant.donor_agency  || "Unknown"
+    result.donor_agency_normalized =  result.donor_agency_normalized || result.donor_agency || "Unknown"
+    result.amount                  =  result.amount                  || grant.amount        || "Not specified"
+    result.proposal_title          =  result.proposal_title          || grant.grant_name    || ""
+    result.short_description       =  result.short_description       || grant.short_description || ""
+    result.long_description        =  result.long_description        || ""
 
-    if (!result.methodology) {
-        result.methodology = {
-            phase_1: "Assessment and planning phase",
-            phase_2: "Implementation and training",
-            phase_3: "Scaling and partnerships",
-            phase_4: "Evaluation and sustainability"
-        };
-    }
+    // Remove empty strings from arrays
+    result.country    = result.country.filter(c => c && c.trim())
+    result.focus_area = result.focus_area.filter(f => f && f.trim())
 
-    if (!result.budget || !Array.isArray(result.budget.breakdown) || result.budget.breakdown.length === 0) {
-        result.budget = {
-            total_amount: grant.amount || "Not specified",
-            currency: "USD",
-            duration: "36 months",
-            breakdown: [
-                {
-                    category: "Program Implementation",
-                    year_1: "30%",
-                    year_2: "40%",
-                    year_3: "30%",
-                    total: grant.amount || "Not specified"
-                }
-            ]
-        };
-    }
-
-    // sanitize
-    result.region_normalized = (result.region_normalized || grant.region || "").toLowerCase().trim();
-    result.donor_agency = result.donor_agency || grant.donor_agency || "Unknown";
-    result.donor_agency_normalized = result.donor_agency_normalized || result.donor_agency;
-    result.amount = result.amount || grant.amount || "Not specified";
-    result.proposal_title = result.proposal_title || grant.grant_name || "";
-    result.short_description = result.short_description || grant.short_description || "";
-
-    return result;
+    return result
 }
 
-/* ─── Fallback ───────────────────────────────────────── */
-function fallbackResponse(grant) {
-    return {
-        country: [grant.region || "Unknown"],
-        region_normalized: (grant.region || "").toLowerCase(),
-        donor_agency: grant.donor_agency || "Unknown",
-        donor_agency_normalized: grant.donor_agency || "Unknown",
-        focus_area: ["Community Development"],
-        proposal_title: grant.grant_name || "",
-        short_description: grant.short_description || "",
-        amount: grant.amount || "Not specified"
-    };
-}
-
-/* ─── Country extraction ───────────────────────── */
+/* ─── Dynamic country extraction — checks known sovereign nations in text ─── */
 function extractCountryFromText(regionText, grant) {
-    const text = (regionText + " " + grant.grant_name).toLowerCase();
+    const allText = [
+        regionText,
+        grant.region,
+        grant.donor_agency,
+        grant.short_description,
+        grant.grant_name,
+    ].filter(Boolean).join(" ")
 
-    if (text.includes("india")) return ["India"];
-    if (text.includes("africa")) return ["Nigeria", "Kenya", "South Africa"];
-    if (text.includes("asia")) return ["India", "Indonesia", "Vietnam"];
+    // Sovereign country list — geography knowledge, not domain-specific hardcoding
+    const knownCountries = [
+        "Australia","India","United States","United Kingdom","Canada","Germany",
+        "France","Brazil","South Africa","Nigeria","Kenya","Ethiopia","Ghana",
+        "Bangladesh","Pakistan","Indonesia","Philippines","Vietnam","Thailand",
+        "Mexico","Colombia","Argentina","Chile","Peru","Ecuador","Bolivia",
+        "Uganda","Tanzania","Rwanda","Malawi","Zimbabwe","Zambia","Mozambique",
+        "Senegal","Mali","Niger","Chad","Cameroon","Ivory Coast","Sierra Leone",
+        "Nepal","Sri Lanka","Myanmar","Cambodia","Laos","Mongolia","Kazakhstan",
+        "Ukraine","Poland","Romania","Hungary","Portugal","Spain","Italy","Greece",
+        "Egypt","Morocco","Tunisia","Algeria","Libya","Jordan","Lebanon","Iraq",
+        "Afghanistan","Yemen","Syria","Turkey","Iran","Saudi Arabia","UAE",
+        "New Zealand","Papua New Guinea","Fiji","Solomon Islands","Vanuatu",
+    ]
 
-    return [grant.region || "Unknown"];
+    for (const country of knownCountries) {
+        if (allText.toLowerCase().includes(country.toLowerCase())) {
+            return [country]
+        }
+    }
+
+    // Last resort: use the raw region string
+    const fallback = (grant.region || regionText || "").trim()
+    return fallback ? [fallback] : ["Unknown"]
 }
 
-/* ─── Focus extraction ───────────────────────── */
+/* ─── Dynamic focus area extraction — keyword groups, no hardcoded themes ─── */
 function extractFocusFromText(grant) {
-    const text = (grant.grant_name + " " + grant.short_description).toLowerCase();
+    const text = [
+        grant.grant_name,
+        grant.eligibility,
+        grant.short_description,
+    ].filter(Boolean).join(" ").toLowerCase()
 
-    const areas = [];
+    const themeGroups = [
+        { keywords: ["flood","cyclone","disaster","emergency","relief","storm","drought"],    label: "Disaster Relief & Recovery" },
+        { keywords: ["freight","transport","logistics","shipping","supply chain"],             label: "Freight & Logistics" },
+        { keywords: ["farmer","farm","agriculture","crop","livestock","primary producer"],    label: "Agriculture & Primary Industries" },
+        { keywords: ["rural","remote","regional","outback","village"],                        label: "Rural Development" },
+        { keywords: ["health","medtech","medical","hospital","clinic","healthcare"],          label: "Health & MedTech" },
+        { keywords: ["startup","entrepreneur","incubator","accelerator","venture"],           label: "Startup & Innovation" },
+        { keywords: ["climate","environment","green","renewable","sustainability","carbon"],  label: "Climate & Environment" },
+        { keywords: ["education","school","training","skill","learning","scholarship"],       label: "Education & Skills" },
+        { keywords: ["women","gender","girl","female","empowerment"],                         label: "Gender Equity" },
+        { keywords: ["digital","tech","software","ai","data","cyber","ict"],                 label: "Digital & Technology" },
+        { keywords: ["food","nutrition","hunger","malnutrition","food security"],             label: "Food Security & Nutrition" },
+        { keywords: ["water","sanitation","wash","irrigation"],                               label: "Water & Sanitation" },
+        { keywords: ["housing","shelter","infrastructure","construction"],                    label: "Housing & Infrastructure" },
+        { keywords: ["finance","microfinance","loan","credit","banking","fintech"],           label: "Financial Inclusion" },
+        { keywords: ["youth","child","adolescent","student","young people"],                  label: "Youth Development" },
+        { keywords: ["energy","solar","wind","power","electricity","off-grid"],               label: "Energy Access" },
+        { keywords: ["research","r&d","laboratory","science","innovation"],                   label: "Research & Development" },
+    ]
 
-    if (text.includes("women")) areas.push("Gender Equity");
-    if (text.includes("finance")) areas.push("Financial Inclusion");
-    if (text.includes("business")) areas.push("Entrepreneurship Development");
-    if (text.includes("skill")) areas.push("Skills Development");
-    if (text.includes("climate")) areas.push("Climate Resilience");
+    const matched = themeGroups
+        .filter(g => g.keywords.some(kw => text.includes(kw)))
+        .map(g => g.label)
+        .slice(0, 6)
 
-    return areas.length ? areas : ["Economic Empowerment", "Community Development"];
+    if (matched.length === 0) {
+        // Derive labels from meaningful words in grant name
+        const words = (grant.grant_name || "")
+            .split(" ")
+            .filter(w => w.length > 4)
+            .slice(0, 3)
+            .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        return words.length > 0 ? words : ["Community Development", "Economic Empowerment"]
+    }
+
+    return matched
 }
 
-module.exports = { processGrant };
+module.exports = { processGrant }
