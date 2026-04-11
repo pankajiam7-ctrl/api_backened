@@ -132,8 +132,9 @@ MANDATORY STRUCTURE INSIDE long_description
 9. Monitoring & Evaluation (300–400 words)
    - KPIs, baseline, midline, endline
 10. Expected Outcomes (300–400 words with measurable impact)
-11. Risk Assessment (200–300 words)
-12. Conclusion (200–300 words)
+11. Budget 
+12. Risk Assessment (200–300 words)
+13. Conclusion (200–300 words)
 
 ========================
 WRITING STYLE
