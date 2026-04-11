@@ -31,13 +31,13 @@ Use your knowledge of geography and grant themes to infer all values.`
 
 /* ─── Prompt builder ──────────────────────────────────────────────────────── */
 function buildPrompt(grant) {
-    return `
+return `
 Analyze this grant and generate a HIGH-QUALITY, DONOR-READY proposal in JSON format.
 
 The output must be extremely detailed, persuasive, and similar to UN / World Bank / large NGO proposals.
 
 GRANT INPUT:
-- Name:  ${grant.grant_name}
+- Name: ${grant.grant_name}
 - Region: ${grant.region}
 - Donor: ${grant.donor_agency}
 - Amount: ${grant.amount}
@@ -67,38 +67,40 @@ RETURN THIS EXACT JSON STRUCTURE:
   },
   "target_beneficiaries": "",
   "budget": {
-    "total_amount": null,
+    "total_amount": 1,
     "currency": "USD",
     "duration": "",
     "breakdown": [
       {
         "category": "",
-        "year_1": null,
-        "year_2": null,
-        "year_3": null,
-        "total": null
+        "year_1": 1,
+        "year_2": 1,
+        "year_3": 1,
+        "total": 1
       }
     ]
   }
 }
 
-RULES FOR EACH FIELD:
+========================
+RULES FOR EACH FIELD
+========================
 
 "country"
 - Array of country names (never empty)
-- Convert region → country
+- Convert region → most relevant country(s)
 
 "region_normalized"
-- Lowercase standardized region
+- Lowercase standardized region (e.g. "europe", "sub-saharan africa")
 
 "donor_agency"
-- Full official funding organization name
+- Full official name
 
 "donor_agency_normalized"
-- Short recognizable name
+- Short common name (e.g. "UNDP", "World Bank")
 
 "focus_area"
-- 4 to 6 highly specific thematic areas
+- 4 to 6 specific sectors (e.g. "women economic empowerment", "climate resilience")
 - Never empty
 
 "proposal_title"
@@ -107,13 +109,15 @@ RULES FOR EACH FIELD:
 
 "short_description"
 - 200–300 words
-- Include problem, solution, beneficiaries, funding need, expected impact
+- Include: problem + solution + beneficiaries + funding + impact
 
 "long_description"
-- 3000 to 5000 words
-- Must follow structured donor format
+- 3000–5000 words
+- Must strictly follow structured donor format below
 
-MANDATORY CONTENT STRUCTURE INSIDE long_description:
+========================
+MANDATORY STRUCTURE INSIDE long_description
+========================
 
 1. Executive Summary (300–400 words)
 2. Background & Context (400–500 words)
@@ -126,30 +130,39 @@ MANDATORY CONTENT STRUCTURE INSIDE long_description:
    - Phase 1 to Phase 4
    - Activities, timelines, stakeholders
 9. Monitoring & Evaluation (300–400 words)
-10. Expected Outcomes (300–400 words)
+   - KPIs, baseline, midline, endline
+10. Expected Outcomes (300–400 words with measurable impact)
 11. Risk Assessment (200–300 words)
 12. Conclusion (200–300 words)
 
-WRITING STYLE:
+========================
+WRITING STYLE
+========================
 - UN / World Bank level professionalism
 - Data-driven (use %, numbers, projections)
-- Avoid generic text
+- Avoid generic content
+- Use realistic development language
 
-"amount"
+========================
+AMOUNT
+========================
 - Extract from input
 - If missing → "Not specified"
 
-"BUDGET" (STRICT – MUST BE GENERATED):
+========================
+BUDGET (VERY STRICT – CRITICAL SECTION)
+========================
 
-- MUST NOT contain null or 0 in final output
+- DO NOT use null or 0 anywhere
+- ALL values must be realistic positive numbers
 
 "total_amount"
-- Must be a NUMBER
+- Must be numeric
+- Must align with grant amount (if given)
 - Must be > 0
-- Must align with grant amount
 
 "duration"
-- MUST be "24 months" or "36 months"
+- MUST be either "24 months" OR "36 months"
 
 "breakdown"
 - MUST contain EXACTLY these 6 categories:
@@ -162,40 +175,54 @@ WRITING STYLE:
   6. Administration
 
 FOR EACH CATEGORY:
-- year_1 > 0
-- year_2 > 0
-- year_3 > 0
-- total > 0
+- year_1 MUST be highest
+- year_2 MUST be lower than year_1
+- year_3 MUST be lowest
+- total = year_1 + year_2 + year_3
 
-STRICT CALCULATIONS:
-- year_1 + year_2 + year_3 = total
-- Sum of all totals = total_amount
+========================
+STRICT FINANCIAL VALIDATION
+========================
 
-DISTRIBUTION LOGIC:
-- Year 1 highest
-- Year 2 medium
-- Year 3 lower
+- Sum of ALL category totals MUST equal total_amount
+- No mismatches allowed
 
-COST STRUCTURE:
-- Operations & Staffing → 30–40%
-- Program Implementation → 20–25%
-- Training → 10–15%
-- Technology → 10–15%
-- Monitoring & Evaluation → 5–10%
-- Administration → 5–8%
+========================
+COST DISTRIBUTION (MANDATORY)
+========================
 
-IMPORTANT:
+- Operations & Staffing → 30% to 40% (largest share)
+- Program Implementation → 20% to 25%
+- Training & Capacity Building → 10% to 15%
+- Technology / Infrastructure → 10% to 15%
+- Monitoring & Evaluation → 5% to 10%
+- Administration → 5% to 8% (smallest share)
+
+========================
+REALISM RULES
+========================
+
 - Do NOT use equal numbers
-- Do NOT use rounded values like 100000
-- Use realistic uneven values (e.g. 84250, 126780)
+- Do NOT use rounded numbers like 100000 or 50000
+- Use uneven realistic values (e.g. 84250, 126780, 97340)
+- Budget must look like a real UN / World Bank financial table
 
-GLOBAL RULES:
+========================
+GLOBAL RULES
+========================
+
 - No empty fields
 - No empty arrays
 - Do not shorten content
+- Ensure JSON is valid and complete
 
-CRITICAL:
-Return ONLY JSON.
+========================
+CRITICAL
+========================
+
+Return ONLY valid JSON.
+No explanation.
+No extra text.
 `;
 }
 
