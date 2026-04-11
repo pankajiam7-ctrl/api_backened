@@ -31,13 +31,13 @@ Use your knowledge of geography and grant themes to infer all values.`
 
 /* ─── Prompt builder ──────────────────────────────────────────────────────── */
 function buildPrompt(grant) {
-   return `
+    return `
 Analyze this grant and generate a HIGH-QUALITY, DONOR-READY proposal in JSON format.
 
 The output must be extremely detailed, persuasive, and similar to UN / World Bank / large NGO proposals.
 
 GRANT INPUT:
-- Name: ${grant.grant_name}
+- Name:  ${grant.grant_name}
 - Region: ${grant.region}
 - Donor: ${grant.donor_agency}
 - Amount: ${grant.amount}
@@ -67,16 +67,16 @@ RETURN THIS EXACT JSON STRUCTURE:
   },
   "target_beneficiaries": "",
   "budget": {
-    "total_amount": "",
+    "total_amount": null,
     "currency": "USD",
     "duration": "",
     "breakdown": [
       {
         "category": "",
-        "year_1": "",
-        "year_2": "",
-        "year_3": "",
-        "total": ""
+        "year_1": null,
+        "year_2": null,
+        "year_3": null,
+        "total": null
       }
     ]
   }
@@ -86,7 +86,7 @@ RULES FOR EACH FIELD:
 
 "country"
 - Array of country names (never empty)
-- Convert region → country (e.g. Maharashtra → India)
+- Convert region → country
 
 "region_normalized"
 - Lowercase standardized region
@@ -95,11 +95,10 @@ RULES FOR EACH FIELD:
 - Full official funding organization name
 
 "donor_agency_normalized"
-- Short recognizable name (e.g. World Bank, USAID)
+- Short recognizable name
 
 "focus_area"
 - 4 to 6 highly specific thematic areas
-- Use domain-specific terms only
 - Never empty
 
 "proposal_title"
@@ -111,62 +110,92 @@ RULES FOR EACH FIELD:
 - Include problem, solution, beneficiaries, funding need, expected impact
 
 "long_description"
-- 3000 to 5000 words (VERY IMPORTANT – HIGH DETAIL)
-- Must read like a real international funding proposal
+- 3000 to 5000 words
+- Must follow structured donor format
 
-MANDATORY STRUCTURE:
+MANDATORY CONTENT STRUCTURE INSIDE long_description:
 
 1. Executive Summary (300–400 words)
 2. Background & Context (400–500 words)
-3. Problem Analysis (500–700 words with statistics %)
+3. Problem Analysis (500–700 words with statistics and %)
 4. Objectives (6–8 SMART measurable goals)
 5. Target Beneficiaries (300–400 words with numbers)
-6. Proposed Solution (400–500 words)
-7. Implementation Plan (600–800 words)
+6. Sustainability Plan (300–400 words)
+7. Proposed Solution (400–500 words)
+8. Implementation Plan (600–800 words)
    - Phase 1 to Phase 4
    - Activities, timelines, stakeholders
-8. Monitoring & Evaluation (300–400 words)
-   - KPIs, baseline, midline, endline
-9. Expected Outcomes (300–400 words with measurable impact)
-10. Risk Assessment (200–300 words)
-11. Sustainability Plan (300–400 words)
+9. Monitoring & Evaluation (300–400 words)
+10. Expected Outcomes (300–400 words)
+11. Risk Assessment (200–300 words)
 12. Conclusion (200–300 words)
 
 WRITING STYLE:
-- Highly professional (UN-level)
-- Strong storytelling + persuasive tone
-- Include numbers everywhere (%, beneficiaries, projections)
+- UN / World Bank level professionalism
+- Data-driven (use %, numbers, projections)
 - Avoid generic text
 
 "amount"
 - Extract from input
 - If missing → "Not specified"
 
-"budget"
-- Provide realistic financial planning
-- Duration: 24–36 months
-- Include 5 to 6 categories:
-  - Program Implementation
-  - Training & Capacity Building
-  - Operations & Staffing
-  - Monitoring & Evaluation
-  - Technology / Infrastructure
-  - Administration
-- Use real numeric values (NOT %)
-- Distribute across Year 1, Year 2, Year 3
-- Ensure totals match total_amount
-- total_amount should align with grant amount
+"BUDGET" (STRICT – MUST BE GENERATED):
+
+- MUST NOT contain null or 0 in final output
+
+"total_amount"
+- Must be a NUMBER
+- Must be > 0
+- Must align with grant amount
+
+"duration"
+- MUST be "24 months" or "36 months"
+
+"breakdown"
+- MUST contain EXACTLY these 6 categories:
+
+  1. Program Implementation
+  2. Training & Capacity Building
+  3. Operations & Staffing
+  4. Monitoring & Evaluation
+  5. Technology / Infrastructure
+  6. Administration
+
+FOR EACH CATEGORY:
+- year_1 > 0
+- year_2 > 0
+- year_3 > 0
+- total > 0
+
+STRICT CALCULATIONS:
+- year_1 + year_2 + year_3 = total
+- Sum of all totals = total_amount
+
+DISTRIBUTION LOGIC:
+- Year 1 highest
+- Year 2 medium
+- Year 3 lower
+
+COST STRUCTURE:
+- Operations & Staffing → 30–40%
+- Program Implementation → 20–25%
+- Training → 10–15%
+- Technology → 10–15%
+- Monitoring & Evaluation → 5–10%
+- Administration → 5–8%
+
+IMPORTANT:
+- Do NOT use equal numbers
+- Do NOT use rounded values like 100000
+- Use realistic uneven values (e.g. 84250, 126780)
 
 GLOBAL RULES:
-- No empty arrays
 - No empty fields
+- No empty arrays
 - Do not shorten content
-- Maintain depth and richness
 
 CRITICAL:
 Return ONLY JSON.
-No markdown.
-No explanation.
 `;
 }
 
@@ -187,16 +216,16 @@ function validateAndClean(result, grant) {
     }
 
     // Sanitize all string fields
-    result.region_normalized       = (result.region_normalized       || grant.region       || "").toLowerCase().trim()
-    result.donor_agency            =  result.donor_agency            || grant.donor_agency  || "Unknown"
-    result.donor_agency_normalized =  result.donor_agency_normalized || result.donor_agency || "Unknown"
-    result.amount                  =  result.amount                  || grant.amount        || "Not specified"
-    result.proposal_title          =  result.proposal_title          || grant.grant_name    || ""
-    result.short_description       =  result.short_description       || grant.short_description || ""
-    result.long_description        =  result.long_description        || ""
+    result.region_normalized = (result.region_normalized || grant.region || "").toLowerCase().trim()
+    result.donor_agency = result.donor_agency || grant.donor_agency || "Unknown"
+    result.donor_agency_normalized = result.donor_agency_normalized || result.donor_agency || "Unknown"
+    result.amount = result.amount || grant.amount || "Not specified"
+    result.proposal_title = result.proposal_title || grant.grant_name || ""
+    result.short_description = result.short_description || grant.short_description || ""
+    result.long_description = result.long_description || ""
 
     // Remove empty strings from arrays
-    result.country    = result.country.filter(c => c && c.trim())
+    result.country = result.country.filter(c => c && c.trim())
     result.focus_area = result.focus_area.filter(f => f && f.trim())
 
     return result
@@ -214,17 +243,17 @@ function extractCountryFromText(regionText, grant) {
 
     // Sovereign country list — geography knowledge, not domain-specific hardcoding
     const knownCountries = [
-        "Australia","India","United States","United Kingdom","Canada","Germany",
-        "France","Brazil","South Africa","Nigeria","Kenya","Ethiopia","Ghana",
-        "Bangladesh","Pakistan","Indonesia","Philippines","Vietnam","Thailand",
-        "Mexico","Colombia","Argentina","Chile","Peru","Ecuador","Bolivia",
-        "Uganda","Tanzania","Rwanda","Malawi","Zimbabwe","Zambia","Mozambique",
-        "Senegal","Mali","Niger","Chad","Cameroon","Ivory Coast","Sierra Leone",
-        "Nepal","Sri Lanka","Myanmar","Cambodia","Laos","Mongolia","Kazakhstan",
-        "Ukraine","Poland","Romania","Hungary","Portugal","Spain","Italy","Greece",
-        "Egypt","Morocco","Tunisia","Algeria","Libya","Jordan","Lebanon","Iraq",
-        "Afghanistan","Yemen","Syria","Turkey","Iran","Saudi Arabia","UAE",
-        "New Zealand","Papua New Guinea","Fiji","Solomon Islands","Vanuatu",
+        "Australia", "India", "United States", "United Kingdom", "Canada", "Germany",
+        "France", "Brazil", "South Africa", "Nigeria", "Kenya", "Ethiopia", "Ghana",
+        "Bangladesh", "Pakistan", "Indonesia", "Philippines", "Vietnam", "Thailand",
+        "Mexico", "Colombia", "Argentina", "Chile", "Peru", "Ecuador", "Bolivia",
+        "Uganda", "Tanzania", "Rwanda", "Malawi", "Zimbabwe", "Zambia", "Mozambique",
+        "Senegal", "Mali", "Niger", "Chad", "Cameroon", "Ivory Coast", "Sierra Leone",
+        "Nepal", "Sri Lanka", "Myanmar", "Cambodia", "Laos", "Mongolia", "Kazakhstan",
+        "Ukraine", "Poland", "Romania", "Hungary", "Portugal", "Spain", "Italy", "Greece",
+        "Egypt", "Morocco", "Tunisia", "Algeria", "Libya", "Jordan", "Lebanon", "Iraq",
+        "Afghanistan", "Yemen", "Syria", "Turkey", "Iran", "Saudi Arabia", "UAE",
+        "New Zealand", "Papua New Guinea", "Fiji", "Solomon Islands", "Vanuatu",
     ]
 
     for (const country of knownCountries) {
@@ -247,23 +276,23 @@ function extractFocusFromText(grant) {
     ].filter(Boolean).join(" ").toLowerCase()
 
     const themeGroups = [
-        { keywords: ["flood","cyclone","disaster","emergency","relief","storm","drought"],    label: "Disaster Relief & Recovery" },
-        { keywords: ["freight","transport","logistics","shipping","supply chain"],             label: "Freight & Logistics" },
-        { keywords: ["farmer","farm","agriculture","crop","livestock","primary producer"],    label: "Agriculture & Primary Industries" },
-        { keywords: ["rural","remote","regional","outback","village"],                        label: "Rural Development" },
-        { keywords: ["health","medtech","medical","hospital","clinic","healthcare"],          label: "Health & MedTech" },
-        { keywords: ["startup","entrepreneur","incubator","accelerator","venture"],           label: "Startup & Innovation" },
-        { keywords: ["climate","environment","green","renewable","sustainability","carbon"],  label: "Climate & Environment" },
-        { keywords: ["education","school","training","skill","learning","scholarship"],       label: "Education & Skills" },
-        { keywords: ["women","gender","girl","female","empowerment"],                         label: "Gender Equity" },
-        { keywords: ["digital","tech","software","ai","data","cyber","ict"],                 label: "Digital & Technology" },
-        { keywords: ["food","nutrition","hunger","malnutrition","food security"],             label: "Food Security & Nutrition" },
-        { keywords: ["water","sanitation","wash","irrigation"],                               label: "Water & Sanitation" },
-        { keywords: ["housing","shelter","infrastructure","construction"],                    label: "Housing & Infrastructure" },
-        { keywords: ["finance","microfinance","loan","credit","banking","fintech"],           label: "Financial Inclusion" },
-        { keywords: ["youth","child","adolescent","student","young people"],                  label: "Youth Development" },
-        { keywords: ["energy","solar","wind","power","electricity","off-grid"],               label: "Energy Access" },
-        { keywords: ["research","r&d","laboratory","science","innovation"],                   label: "Research & Development" },
+        { keywords: ["flood", "cyclone", "disaster", "emergency", "relief", "storm", "drought"], label: "Disaster Relief & Recovery" },
+        { keywords: ["freight", "transport", "logistics", "shipping", "supply chain"], label: "Freight & Logistics" },
+        { keywords: ["farmer", "farm", "agriculture", "crop", "livestock", "primary producer"], label: "Agriculture & Primary Industries" },
+        { keywords: ["rural", "remote", "regional", "outback", "village"], label: "Rural Development" },
+        { keywords: ["health", "medtech", "medical", "hospital", "clinic", "healthcare"], label: "Health & MedTech" },
+        { keywords: ["startup", "entrepreneur", "incubator", "accelerator", "venture"], label: "Startup & Innovation" },
+        { keywords: ["climate", "environment", "green", "renewable", "sustainability", "carbon"], label: "Climate & Environment" },
+        { keywords: ["education", "school", "training", "skill", "learning", "scholarship"], label: "Education & Skills" },
+        { keywords: ["women", "gender", "girl", "female", "empowerment"], label: "Gender Equity" },
+        { keywords: ["digital", "tech", "software", "ai", "data", "cyber", "ict"], label: "Digital & Technology" },
+        { keywords: ["food", "nutrition", "hunger", "malnutrition", "food security"], label: "Food Security & Nutrition" },
+        { keywords: ["water", "sanitation", "wash", "irrigation"], label: "Water & Sanitation" },
+        { keywords: ["housing", "shelter", "infrastructure", "construction"], label: "Housing & Infrastructure" },
+        { keywords: ["finance", "microfinance", "loan", "credit", "banking", "fintech"], label: "Financial Inclusion" },
+        { keywords: ["youth", "child", "adolescent", "student", "young people"], label: "Youth Development" },
+        { keywords: ["energy", "solar", "wind", "power", "electricity", "off-grid"], label: "Energy Access" },
+        { keywords: ["research", "r&d", "laboratory", "science", "innovation"], label: "Research & Development" },
     ]
 
     const matched = themeGroups
