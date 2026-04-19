@@ -222,17 +222,17 @@ exports.subscriptionVerify =async (req, res) => {
   const { subscriptionId, plan, userId } = req.body
 
   // 1. Get access token
-  const auth = await fetch('https://api-m.paypal.com/v1/oauth2/token', {
+  const auth = await fetch(`${PAYPAL_BASE}/v1/oauth2/token`, {
     method: 'POST',
     headers: {
-      'Authorization': `Basic ${Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_SECRET}`).toString('base64')}`,
+      'Authorization': `Basic ${Buffer.from(`${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_CLIENT_SECRET}`).toString('base64')}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: 'grant_type=client_credentials',
   }).then(r => r.json())
 
   // 2. Fetch subscription details
-  const sub = await fetch(`https://api-m.paypal.com/v1/billing/subscriptions/${subscriptionId}`, {
+  const sub = await fetch(`${PAYPAL_BASE}/v1/billing/subscriptions/${subscriptionId}`, {
     headers: { 'Authorization': `Bearer ${auth.access_token}` }
   }).then(r => r.json())
 
