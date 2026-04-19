@@ -146,6 +146,143 @@ exports.createGrant = async (req, res) => {
 
 // ✅ GET ALL (FILTER + PAGINATION)
 // ✅ GET ALL (FILTER + PAGINATION + SEARCH)
+// exports.getGrants = async (req, res) => {
+//     try {
+//         let {
+//             country,
+//             area,
+//             budget,
+//             status,
+//             search,
+//             sort,
+//             page = 1,
+//             limit = 10,
+//         } = req.query;
+
+//         // ✅ Safe number conversion
+//         page = Math.max(parseInt(page) || 1, 1);
+//         limit = Math.max(parseInt(limit) || 10, 1);
+
+//         const query = {};
+
+//         // ─── 🔍 Search ────────────────────────────────────────────────────────
+//         if (search && search.trim()) {
+//             const regex = new RegExp(search.trim(), 'i');
+//             query.$or = [
+//                 { title: regex },
+//                 { donor: regex },
+//                 { 'raw.donor_agency': regex },
+//                 { 'raw.description': regex },
+//                 { 'ai.inferred_focus_areas': regex },
+//             ];
+//         }
+
+//         // ─── 🌍 Country filter ────────────────────────────────────────────────
+//         if (country && country.trim()) {
+//             const c = country.trim();
+//             query.$and = query.$and || [];
+//             query.$and.push({
+//                 $or: [
+//                     { 'ai.inferred_focus_country': { $elemMatch: { $regex: new RegExp(`^${c}$`, 'i') } } },
+//                     { 'geography.country': { $elemMatch: { $regex: new RegExp(`^${c}$`, 'i') } } },
+//                     { 'geography.region_normalized': new RegExp(`^${c}$`, 'i') },
+//                     { 'raw.region': new RegExp(`^${c}$`, 'i') },
+//                 ]
+//             });
+//         }
+
+//         // ─── 🎯 Focus area filter ─────────────────────────────────────────────
+//         if (area && area.trim()) {
+//             query['ai.inferred_focus_areas'] = {
+//                 $elemMatch: { $regex: new RegExp(`^${area.trim()}$`, 'i') }
+//             };
+//         }
+
+//         // ─── 💰 Budget filter ─────────────────────────────────────────────────
+//         if (budget && !isNaN(budget)) {
+//             query.$and = query.$and || [];
+//             query.$and.push({
+//                 $or: [
+//                     { 'financials.maxAmount': { $lte: Number(budget) } },
+//                     { 'financials.maxAmount': null },
+//                     { 'financials.maxAmount': { $exists: false } },
+//                 ]
+//             });
+//         }
+
+//         // ─── 🔓 Status filter ─────────────────────────────────────────────────
+//         if (status) {
+//             if (status.toLowerCase() === 'open') query.isOpen = true;
+//             if (status.toLowerCase() === 'closed') query.isOpen = false;
+//         }
+
+//         // ─── 📊 Sort ──────────────────────────────────────────────────────────
+//         let sortObj = { createdAt: -1 };
+//         if (sort === 'deadline') sortObj = { 'raw.deadline': 1 };
+//         if (sort === 'amount') sortObj = { 'financials.maxAmount': -1 };
+
+//         // 🧪 DEBUG
+//         console.log('FINAL QUERY =>', JSON.stringify(query, null, 2));
+
+//         query.type = 0;
+
+//         // ─── 📅 Today filter ─────────────────────────────────────────────────
+//         const startOfToday = new Date();
+//         startOfToday.setHours(0, 0, 0, 0);
+
+//         // ─── 📦 Fetch ─────────────────────────────────────────────────────────
+//         const grants = await Grant.find({
+//             ...query,
+//             //createdAt: { $gte: startOfToday }
+//         })
+//             .sort(sortObj)
+//             .skip((page - 1) * limit)
+//             .limit(limit)
+//             .select('title TitleURL donor financials deadline isOpen imageUrl raw ai geography')
+//             .lean();
+
+//         // ─── 🔄 Normalize (ONLY image fix, keep TitleURL as-is) ───────────────
+//         const normalizedGrants = grants.map(g => {
+//             const resolvedUrl = Array.isArray(g.imageUrl)
+//                 ? (g.imageUrl[0] || '')
+//                 : (g.imageUrl || '');
+
+//             return {
+//                 ...g,
+//                 TitleURL: g.TitleURL || null,   // ✅ return DB value only
+//                 url: g.TitleURL ? `/grants/${g.TitleURL}` : null, // optional
+//                 imageUrl: resolvedUrl,
+//                 raw: g.raw
+//                     ? { ...g.raw, imageUrl: resolvedUrl }
+//                     : { imageUrl: resolvedUrl },
+//             };
+//         });
+
+//         // ─── 🔢 FIXED COUNT ───────────────────────────────────────────────────
+//         const total = await Grant.countDocuments({
+//             ...query,
+//             //createdAt: { $gte: startOfToday }
+//         });
+
+//         // ─── ✅ Response ──────────────────────────────────────────────────────
+//         return res.status(200).json({
+//             success: true,
+//             total,
+//             page,
+//             totalPages: Math.ceil(total / limit),
+//             count: normalizedGrants.length,
+//             data: normalizedGrants,
+//         });
+
+//     } catch (err) {
+//         console.error('getGrants ERROR:', err);
+//         return res.status(500).json({
+//             success: false,
+//             message: err.message
+//         });
+//     }
+// };
+
 exports.getGrants = async (req, res) => {
     try {
         let {
@@ -159,7 +296,6 @@ exports.getGrants = async (req, res) => {
             limit = 10,
         } = req.query;
 
-        // ✅ Safe number conversion
         page = Math.max(parseInt(page) || 1, 1);
         limit = Math.max(parseInt(limit) || 10, 1);
 
@@ -218,30 +354,35 @@ exports.getGrants = async (req, res) => {
 
         // ─── 📊 Sort ──────────────────────────────────────────────────────────
         let sortObj = { createdAt: -1 };
-        if (sort === 'deadline') sortObj = { 'raw.deadline': 1 };
+        if (sort === 'deadline') sortObj = { 'deadline': 1 };
         if (sort === 'amount') sortObj = { 'financials.maxAmount': -1 };
 
-        // 🧪 DEBUG
-        console.log('FINAL QUERY =>', JSON.stringify(query, null, 2));
-
-        query.type = 0;
-
-        // ─── 📅 Today filter ─────────────────────────────────────────────────
+        // ─── 📅 Deadline filter — sirf aaj ya future wale grants ─────────────
         const startOfToday = new Date();
         startOfToday.setHours(0, 0, 0, 0);
 
+        query.$and = query.$and || [];
+        query.$and.push({
+            $or: [
+                { deadline: { $gte: startOfToday } },  // future/aaj ka deadline
+                { deadline: null },                     // deadline nahi hai
+                { deadline: { $exists: false } },       // field hi nahi
+            ]
+        });
+
+        query.type = 0;
+
+        console.log('FINAL QUERY =>', JSON.stringify(query, null, 2));
+
         // ─── 📦 Fetch ─────────────────────────────────────────────────────────
-        const grants = await Grant.find({
-            ...query,
-            //createdAt: { $gte: startOfToday }
-        })
+        const grants = await Grant.find(query)
             .sort(sortObj)
             .skip((page - 1) * limit)
             .limit(limit)
             .select('title TitleURL donor financials deadline isOpen imageUrl raw ai geography')
             .lean();
 
-        // ─── 🔄 Normalize (ONLY image fix, keep TitleURL as-is) ───────────────
+        // ─── 🔄 Normalize ─────────────────────────────────────────────────────
         const normalizedGrants = grants.map(g => {
             const resolvedUrl = Array.isArray(g.imageUrl)
                 ? (g.imageUrl[0] || '')
@@ -249,8 +390,8 @@ exports.getGrants = async (req, res) => {
 
             return {
                 ...g,
-                TitleURL: g.TitleURL || null,   // ✅ return DB value only
-                url: g.TitleURL ? `/grants/${g.TitleURL}` : null, // optional
+                TitleURL: g.TitleURL || null,
+                url: g.TitleURL ? `/grants/${g.TitleURL}` : null,
                 imageUrl: resolvedUrl,
                 raw: g.raw
                     ? { ...g.raw, imageUrl: resolvedUrl }
@@ -258,11 +399,8 @@ exports.getGrants = async (req, res) => {
             };
         });
 
-        // ─── 🔢 FIXED COUNT ───────────────────────────────────────────────────
-        const total = await Grant.countDocuments({
-            ...query,
-            //createdAt: { $gte: startOfToday }
-        });
+        // ─── 🔢 Count ─────────────────────────────────────────────────────────
+        const total = await Grant.countDocuments(query);
 
         // ─── ✅ Response ──────────────────────────────────────────────────────
         return res.status(200).json({
@@ -276,10 +414,7 @@ exports.getGrants = async (req, res) => {
 
     } catch (err) {
         console.error('getGrants ERROR:', err);
-        return res.status(500).json({
-            success: false,
-            message: err.message
-        });
+        return res.status(500).json({ success: false, message: err.message });
     }
 };
 
