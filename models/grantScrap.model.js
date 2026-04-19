@@ -19,7 +19,7 @@ const grantSchema = new mongoose.Schema(
         // =========================
         // 📌 CORE FIELDS (UI / API)
         // =========================
-        title: { type: String, required: true, index: true },
+        title: { type: String, required: true, index: true,   unique: true },
         donor: { type: String, index: true },
         category: { type: String, default: "grant" },
 
@@ -104,6 +104,12 @@ const grantSchema = new mongoose.Schema(
         type: {
             type: Number,
             default: 0
+        },
+
+        seo_url:{
+                type: String
+
+
         }
     },
     { timestamps: true }

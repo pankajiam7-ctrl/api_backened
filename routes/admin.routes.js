@@ -7,7 +7,8 @@ const {
     updateUserPlan,
     publishGrant,
     updateLink,
-    getLink
+    getLink,
+    getCludinaryLink
 } = require("../controllers/admin.controller");
 
 // 🔒 Admin only (add role check later)
@@ -17,5 +18,6 @@ router.put("/users/:id/plan", protect, updateUserPlan);
 router.put("/grants/:id/publish", protect, publishGrant);
 router.post('/updateLink',updateLink)
 router.get('/getUrlLink',getLink);
+router.get('/linkCloudinary', getCludinaryLink);
 
 module.exports = router;

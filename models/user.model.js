@@ -34,15 +34,15 @@ const userSchema = new mongoose.Schema(
     proposalStats: {
         sampleDownloadedCount: {   // sample proposal download
             type: Number,
-            default: 0
+            default: 1
         },
         createdCount: {           // user created proposals
             type: Number,
-            default: 0
+            default: 1
         },
         trackerUsageCount: {      // tracker use / open
             type: Number,
-            default: 0
+            default: 1
         }
     }
 

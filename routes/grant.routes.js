@@ -16,7 +16,9 @@ const {
     createGrantsDetail,
     updateGrantDetails,
     addPdfURL,
-    getPdf
+    getPdf,
+    saveGrantJSON,
+    getGrantsByTitleURL
 } = require("../controllers/grant.controller");
 
 // Scraper
@@ -39,7 +41,9 @@ router.put("/:id", updateGrant);
 router.delete("/:id", deleteGrant);
 router.patch("/:id", updateSingleField);
 
-router.get("/:id", getGrantById);
+router.get("www/:id", getGrantById);
+router.get('/:titleUrl', getGrantsByTitleURL);
+router.post('/save-grants', saveGrantJSON);
 
 
 

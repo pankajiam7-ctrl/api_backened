@@ -47,22 +47,53 @@ exports.register = async (req, res) => {
 };
 // LOGIN
 exports.login = async (req, res) => {
-    try {
-        const { email, password } = req.body;
+  try {
+    const { email, password } = req.body;
 
-        const user = await User.findOne({ email });
+    const user = await User.findOne({ email });
 
-        if (!user || !(await bcrypt.compare(password, user.password))) {
-            return res.status(401).json({ message: "Invalid credentials" });
-        }
-
-        res.json({
-            user
-        });
-
-    } catch (err) {
-        res.status(500).json({ message: err.message });
+    // ❌ Invalid user
+    if (!user) {
+      return res.status(401).json({ message: "Invalid credentials" });
     }
+
+    // ❌ Wrong password
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    // ✅ Create Token
+    const token = jwt.sign(
+      {
+        id: user._id,
+        email: user.email,
+        role: user.role
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: process.env.JWT_EXPIRES || "7d"
+      }
+    );
+
+    // ❌ password remove before sending
+    const userData = user.toObject();
+    delete userData.password;
+
+    // ✅ Response
+    res.json({
+      success: true,
+      token,
+      user: userData
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
 };
 
 // OTHER APIs (Basic)

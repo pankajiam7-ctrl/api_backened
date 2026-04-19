@@ -6,6 +6,8 @@ const userRoutes = require("./routes/user.routes");
 const grantRoutes = require("./routes/grant.routes");
 const proposalRoutes = require("./routes/proposal.routes");
 const adminRoutes = require("./routes/admin.routes");
+const paymentRoutes =  require("./routes/payment.routes")
+
 
 const app = express();
 
@@ -32,5 +34,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/grants", grantRoutes);
 app.use("/api/proposals", proposalRoutes);
 app.use("/api/admin", adminRoutes);
+app.use('/api/payment',paymentRoutes);
+
 
 module.exports = app;

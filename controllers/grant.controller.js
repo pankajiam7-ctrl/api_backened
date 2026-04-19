@@ -13,6 +13,103 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
 
+exports.saveGrantJSON = async (req, res) => {
+    try {
+        const data = req.body;
+
+        if (!Array.isArray(data)) {
+            return res.status(400).json({
+                success: false,
+                message: "Expected an array of grants"
+            });
+        }
+
+        // 🔥 slug generator
+        const createSlug = (text) => {
+            return text
+                ?.toLowerCase()
+                .trim()
+                .replace(/[^a-z0-9\s-]/g, '')
+                .replace(/\s+/g, '-')
+                .replace(/-+/g, '-');
+        };
+
+        // 🔥 convert comma string → array
+        const parseArray = (value) => {
+            if (!value) return [];
+            return value.split(',').map(v => v.trim()).filter(Boolean);
+        };
+
+        // 🔥 convert DD-MM-YYYY → Date
+        const parseDate = (dateStr) => {
+            if (!dateStr) return null;
+            const [day, month, year] = dateStr.split('-');
+            return new Date(`${year}-${month}-${day}`);
+        };
+
+        const formattedData = data.map(item => {
+            const countries = parseArray(item.country || item.region);
+            const categories = parseArray(item.category);
+
+            return {
+                // ✅ REQUIRED FIELD (fixes "title is required")
+                title: item.grant_name,
+
+                // slug
+                TitleURL: item.TitleURL ||createSlug(item.grant_name || ''),
+
+                // date fix
+                deadline: parseDate(item.deadline),
+
+                // geography mapping
+                geography: {
+                    ...item.geography,
+                    country: countries
+                },
+
+                // ✅ IMPORTANT: category mapped here (NOT saved separately)
+                ai: {
+                    ...item.ai,
+                    inferred_focus_areas: categories
+                },
+
+                // raw data
+                raw: {
+                    ...item.raw,
+                    source_url: item.source_url || item.apply_url || item.raw?.source_url || '',
+                    grant_name: item.grant_name,
+                    deadline: item.deadline,
+                    amount: item.amount,
+                    region: item.region,
+                    donor_agency: item.donor_agency
+                },
+
+                // optional fields (keep if needed)
+                amount: item.amount,
+                donor_agency: item.donor_agency
+            };
+        });
+
+        console.log(formattedData);
+
+        const savedData = await Grant.insertMany(formattedData);
+
+        return res.status(201).json({
+            success: true,
+            message: "Grants saved successfully",
+            count: savedData.length,
+            data: savedData
+        });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: "Server Error",
+            error: error.message
+        });
+    }
+};
 // ✅ CREATE (ADMIN)
 exports.createGrant = async (req, res) => {
     try {
@@ -81,8 +178,6 @@ exports.getGrants = async (req, res) => {
         }
 
         // ─── 🌍 Country filter ────────────────────────────────────────────────
-        // Frontend dropdown options come from ai.inferred_focus_country (array)
-        // So we match against that array field — plus geography fallbacks
         if (country && country.trim()) {
             const c = country.trim();
             query.$and = query.$and || [];
@@ -122,30 +217,40 @@ exports.getGrants = async (req, res) => {
         }
 
         // ─── 📊 Sort ──────────────────────────────────────────────────────────
-        let sortObj = { createdAt: -1 };   // default: newest
+        let sortObj = { createdAt: -1 };
         if (sort === 'deadline') sortObj = { 'raw.deadline': 1 };
         if (sort === 'amount') sortObj = { 'financials.maxAmount': -1 };
-        if (sort === 'newest') sortObj = { createdAt: -1 };
 
-        // 🧪 DEBUG (remove in production)
+        // 🧪 DEBUG
         console.log('FINAL QUERY =>', JSON.stringify(query, null, 2));
 
+        query.type = 0;
+
+        // ─── 📅 Today filter ─────────────────────────────────────────────────
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+
         // ─── 📦 Fetch ─────────────────────────────────────────────────────────
-        // ✅ Added "geography" to select so country filter data comes back
-        const grants = await Grant.find(query)
+        const grants = await Grant.find({
+            ...query,
+            //createdAt: { $gte: startOfToday }
+        })
             .sort(sortObj)
             .skip((page - 1) * limit)
             .limit(limit)
-            .select('title donor financials deadline isOpen imageUrl raw ai geography')
+            .select('title TitleURL donor financials deadline isOpen imageUrl raw ai geography')
             .lean();
 
-        // ✅ Normalize imageUrl array → string
+        // ─── 🔄 Normalize (ONLY image fix, keep TitleURL as-is) ───────────────
         const normalizedGrants = grants.map(g => {
             const resolvedUrl = Array.isArray(g.imageUrl)
                 ? (g.imageUrl[0] || '')
                 : (g.imageUrl || '');
+
             return {
                 ...g,
+                TitleURL: g.TitleURL || null,   // ✅ return DB value only
+                url: g.TitleURL ? `/grants/${g.TitleURL}` : null, // optional
                 imageUrl: resolvedUrl,
                 raw: g.raw
                     ? { ...g.raw, imageUrl: resolvedUrl }
@@ -153,8 +258,13 @@ exports.getGrants = async (req, res) => {
             };
         });
 
-        const total = await Grant.countDocuments(query);
+        // ─── 🔢 FIXED COUNT ───────────────────────────────────────────────────
+        const total = await Grant.countDocuments({
+            ...query,
+            //createdAt: { $gte: startOfToday }
+        });
 
+        // ─── ✅ Response ──────────────────────────────────────────────────────
         return res.status(200).json({
             success: true,
             total,
@@ -166,7 +276,10 @@ exports.getGrants = async (req, res) => {
 
     } catch (err) {
         console.error('getGrants ERROR:', err);
-        return res.status(500).json({ success: false, message: err.message });
+        return res.status(500).json({
+            success: false,
+            message: err.message
+        });
     }
 };
 
@@ -185,6 +298,35 @@ exports.getGrantById = async (req, res) => {
     }
 };
 
+exports.getGrantById = async (req, res) => {
+    try {
+        const grant = await Grant.findById(req.params.id);
+
+        if (!grant) {
+            return res.status(404).json({ message: "Grant not found" });
+        }
+
+        res.json(grant); // ✅ full data
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+exports.getGrantsByTitleURL = async (req, res) => {
+    try {
+        const grant = await Grant.findOne({
+            TitleURL: req.params.titleUrl
+        });
+
+        if (!grant) {
+            return res.status(404).json({ message: "Grant not found" });
+        }
+
+        res.json(grant);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
 
 // ✅ SEARCH
 exports.searchGrants = async (req, res) => {
@@ -381,7 +523,7 @@ exports.addPdfURL = async (req, res) => {
             TitleName,
             TitleURL,
             PDFURL,
-            type:1
+            type: 1
         });
 
         await newGrant.save();
@@ -399,21 +541,21 @@ exports.addPdfURL = async (req, res) => {
 
 
 exports.getPdf = async (req, res) => {
-  try {
+    try {
 
-    const data = await Grant.find({ type: 1 })
-      .select("TitleName TitleURL PDFURL title") // optional fields
-      .sort({ createdAt: -1 });
+        const data = await Grant.find({ type: 1 })
+            .select("TitleURL PDFURL title imageUrl") // optional fields
+            .sort({ createdAt: -1 });
 
-    res.json({
-      success: true,
-      count: data.length,
-      data
-    });
+        res.json({
+            success: true,
+            count: data.length,
+            data
+        });
 
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
 };
 
 

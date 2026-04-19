@@ -11,7 +11,10 @@ const {
     uploadAvatar,
     getSavedGrants,
     saveGrant,
-    removeSavedGrant
+    removeSavedGrant,
+    updateUserPlan,
+    getUserDetails,
+    downLoadFeature
 } = require("../controllers/user.controller");
 
 router.get("/me", protect, getMe);
@@ -23,6 +26,12 @@ router.post("/me/avatar", protect, uploadAvatar);
 router.get("/me/saved-grants", protect, getSavedGrants);
 router.post("/me/saved-grants/:grantId", protect, saveGrant);
 router.delete("/me/saved-grants/:grantId", protect, removeSavedGrant);
+//Plan 
+
+// routes/userRoutes.js
+router.patch("/:id/subscription", updateUserPlan);
+router.get("/:id",getUserDetails)
+router.post("/:id/download", downLoadFeature);
 
 
 

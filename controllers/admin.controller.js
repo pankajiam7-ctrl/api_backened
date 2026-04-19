@@ -2,6 +2,7 @@ const User = require("../models/user.model");
 const Grant = require("../models/grantScrap.model");
 const Proposal = require("../models/proposal.model");
 const GrantLink = require("../models/grantLink.model");
+const cloudinary = require('../config/cloudinary');
 
 // =====================================================
 // 👥 GET ALL USERS (FILTERS)
@@ -150,18 +151,12 @@ exports.publishGrant = async (req, res) => {
 
 exports.updateLink = async (req, res) => {
     try {
-        const { links } = req.body;
 
-        if (!Array.isArray(links)) {
-            return res.status(400).json({ message: "Links must be an array" });
-        }
-
-        const data = await GrantLink.findOneAndUpdate(
-            { grantId: req.params.id },
-            { $set: { links } },
-            { upsert: true, returnDocument: "after" }
+        const data = await Grant.findOneAndUpdate(
+            { _id: req.body.id },
+            { $set: { imageUrl: req.body.imageUrl } },
+            { new: true, upsert: false } // ✅ important fixes
         );
-
         res.json(data);
 
     } catch (err) {
@@ -180,12 +175,85 @@ exports.getLink = async (req, res) => {
     }
 };
 
-exports.addPdfURL = async(req, res)=>{
-    try{
-     const { data } = req.body;
+exports.addPdfURL = async (req, res) => {
+    try {
+        const { data } = req.body;
 
-    }catch (err) {
+    } catch (err) {
         res.status(500).json({ message: err.message });
     }
 
 }
+
+const saveInBackground = async (files) => {
+    for (const file of files) {
+        try {
+            await Grant.updateOne(
+                { TitleURL: file.seo_url },   // filter
+                {
+                    $set: {
+                        title: file.title,
+                        TitleURL: file.seo_url,
+                        PDFURL: file.PDFURL,
+                        type: file.type
+                    }
+                },
+                { upsert: true }
+            );
+
+            console.log("Saved:", file.seo_url);
+
+        } catch (err) {
+            console.error("Error:", err.message);
+        }
+    }
+};
+
+// 🚀 Main API
+exports.getCludinaryLink = async (req, res) => {
+    try {
+        const result = await cloudinary.search
+            .expression('folder: DOC_SAMPLE')
+            .max_results(100)
+            .execute();
+
+        const files = result.resources.map(item => {
+            let name = item.filename.replace('.docx', '');
+
+            // remove random suffix
+            name = name.replace(/_[a-z0-9]+(_[a-z0-9]+)?$/, '');
+
+            // create slug
+            const slug = name
+                .toLowerCase()
+                .replace(/_/g, ' ')
+                .replace(/[^a-z0-9 ]/g, '')
+                .replace(/\s+/g, '-');
+
+
+            return {
+                title: name,
+                seo_url: slug,
+                PDFURL: item.secure_url,
+                type: 1
+            };
+        });
+
+        // ✅ Send response immediately
+        res.json({
+            success: true,
+            count: files.length,
+            data: files
+        });
+
+        // ✅ Save in background
+        saveInBackground(files);
+
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};

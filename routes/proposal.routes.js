@@ -1,40 +1,27 @@
-const router = require("express").Router();
-const { protect } = require("../middleware/auth.middleware");
+const express = require("express");
+const router = express.Router();
 
 const {
-    generateProposal,
-    regenerateProposal,
-    getStatus,
-    scoreProposal,
-    getProposals,
-    getProposalById,
-    createProposal,
-    updateProposal,
-    updateStatus,
-    deleteProposal,
-    duplicateProposal,
-    downloadProposal
+   dashboard,
+   saveStatus,
+   dashboardStatus,
+   generateProposal 
 } = require("../controllers/proposal.controller");
 
-const {
-    checkDownloadLimit
-} = require("../middleware/downloadLimit.middleware");
+// downmlod Save
+router.post("/dashboard", dashboard);
+// Like Save
+router.post("/save",saveStatus)
 
-router.post("/generate", protect, generateProposal);
-router.post("/regenerate/:id", protect, regenerateProposal);
-router.get("/generate/status/:jobId", protect, getStatus);
-router.post("/score", protect, scoreProposal);
+// Get Download and Like
+router.get("/:userId", dashboardStatus);
 
-router.get("/", protect, getProposals);
-router.get("/:id", protect, getProposalById);
+router.post("/generate", generateProposal)
 
-router.post("/", protect, createProposal);
-router.put("/:id", protect, updateProposal);
-router.patch("/:id/status", protect, updateStatus);
-router.delete("/:id", protect, deleteProposal);
-router.post("/:id/duplicate", protect, duplicateProposal);
 
-router.get("/:id/download", protect, checkDownloadLimit, downloadProposal);
+
+
+
 
 
 module.exports = router;
