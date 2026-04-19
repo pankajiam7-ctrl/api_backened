@@ -169,53 +169,83 @@ exports.getPlan = async (req, res) => {
   })
 }
 
-exports.subscriptionVerify = async (req, res) => {
-  try {
-    const { subscriptionId, plan, userId } = req.body
+// exports.subscriptionVerify = async (req, res) => {
+//   try {
+//     const { subscriptionId, plan, userId } = req.body
 
-    if (!subscriptionId || !plan || !userId) {
-      return res.status(400).json({ error: 'subscriptionId, plan, and userId are required' })
-    }
+//     if (!subscriptionId || !plan || !userId) {
+//       return res.status(400).json({ error: 'subscriptionId, plan, and userId are required' })
+//     }
 
-    const client = paypalClient()
-    const { data: subscription } = await client.get(
-      `/v1/billing/subscriptions/${subscriptionId}`
-    )
+//     const client = paypalClient()
+//     const { data: subscription } = await client.get(
+//       `/v1/billing/subscriptions/${subscriptionId}`
+//     )
 
-    if (subscription.plan_id !== PLAN_IDS[plan]) {
-      return res.status(400).json({ error: 'Plan mismatch — possible tampering detected' })
-    }
+//     if (subscription.plan_id !== PLAN_IDS[plan]) {
+//       return res.status(400).json({ error: 'Plan mismatch — possible tampering detected' })
+//     }
 
-    if (subscription.status !== 'ACTIVE') {
-      return res.status(402).json({
-        error: `Subscription is ${subscription.status}, expected ACTIVE`,
-      })
-    }
+//     if (subscription.status !== 'ACTIVE') {
+//       return res.status(402).json({
+//         error: `Subscription is ${subscription.status}, expected ACTIVE`,
+//       })
+//     }
 
-    // TODO: save to DB
-    // await db.users.update({ id: userId }, {
-    //   plan,
-    //   subscriptionId,
-    //   subscriptionStatus: 'active',
-    //   currentPeriodEnd: subscription.billing_info?.next_billing_time,
-    // })
+//     // TODO: save to DB
+//     // await db.users.update({ id: userId }, {
+//     //   plan,
+//     //   subscriptionId,
+//     //   subscriptionStatus: 'active',
+//     //   currentPeriodEnd: subscription.billing_info?.next_billing_time,
+//     // })
 
-    res.json({
-      success: true,
-      subscriptionId: subscription.id,
-      plan,
-      status: subscription.status,
-      nextBillingTime: subscription.billing_info?.next_billing_time,
-      subscriber: {
-        email: subscription.subscriber?.email_address,
-        name:  subscription.subscriber?.name,
-      },
-    })
-  } catch (err) {
-    console.error('Subscription verify error:', err?.response?.data ?? err.message)
-    res.status(500).json({ error: 'Failed to verify subscription' })
+//     res.json({
+//       success: true,
+//       subscriptionId: subscription.id,
+//       plan,
+//       status: subscription.status,
+//       nextBillingTime: subscription.billing_info?.next_billing_time,
+//       subscriber: {
+//         email: subscription.subscriber?.email_address,
+//         name:  subscription.subscriber?.name,
+//       },
+//     })
+//   } catch (err) {
+//     console.error('Subscription verify error:', err?.response?.data ?? err.message)
+//     res.status(500).json({ error: 'Failed to verify subscription' })
+//   }
+// }
+
+
+exports.subscriptionVerify =async (req, res) => {
+  const { subscriptionId, plan, userId } = req.body
+
+  // 1. Get access token
+  const auth = await fetch('https://api-m.paypal.com/v1/oauth2/token', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Basic ${Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_SECRET}`).toString('base64')}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: 'grant_type=client_credentials',
+  }).then(r => r.json())
+
+  // 2. Fetch subscription details
+  const sub = await fetch(`https://api-m.paypal.com/v1/billing/subscriptions/${subscriptionId}`, {
+    headers: { 'Authorization': `Bearer ${auth.access_token}` }
+  }).then(r => r.json())
+
+  // 3. Check status
+  if (sub.status === 'ACTIVE' || sub.status === 'APPROVED') {
+    // save to DB, update user plan...
+    return res.json({ success: true })
   }
+
+  res.json({ success: false, error: `Status: ${sub.status}` })
 }
+
+
 
 exports.getSubscription = async (req, res) => {
   try {
