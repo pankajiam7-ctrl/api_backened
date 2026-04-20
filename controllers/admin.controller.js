@@ -152,9 +152,9 @@ exports.publishGrant = async (req, res) => {
 exports.updateLink = async (req, res) => {
     try {
         const data = await GrantLink.findOneAndUpdate(
-            { links: req.body.links[0] },
-            { $set: { links: req.body.links } },
-            { new: true, upsert: true }  // ✅ creates new doc if not found
+            { name: "main" },
+            { $set: { name: "main", links: req.body.links } },
+            { new: true, upsert: true }
         );
         res.json(data);
     } catch (err) {
