@@ -151,7 +151,9 @@ exports.publishGrant = async (req, res) => {
 
 exports.updateLink = async (req, res) => {
     try {
-        // Validate input
+        console.log("👉 Body:", req.body);
+        console.log("👉 Content-Type:", req.headers['content-type']);
+
         if (!req.body.id) {
             return res.status(400).json({ message: "ID is required" });
         }
@@ -159,7 +161,10 @@ exports.updateLink = async (req, res) => {
         const data = await GrantLink.findOneAndUpdate(
             { _id: req.body.id },
             { $set: { links: req.body.links } },
-            { new: true, upsert: false }
+            { 
+                returnDocument: 'after',  // ✅ replaces deprecated `new: true`
+                upsert: false 
+            }
         );
 
         if (!data) {
@@ -172,7 +177,6 @@ exports.updateLink = async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 };
-
 exports.getLink = async (req, res) => {
     try {
         const data = await GrantLink.find();
