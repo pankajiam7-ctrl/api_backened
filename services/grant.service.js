@@ -10,18 +10,27 @@ async function processGrant(grant) {
         messages: [
             {
                 role: "system",
-                content: `You are a senior grant analyst and proposal writer.
-Your job is to analyze grant data and return a structured JSON response.
-You MUST always populate every field — empty arrays are NOT acceptable.
-Use your knowledge of geography and grant themes to infer all values.`
+                content: `You are a world-class grant proposal writer with 20+ years of experience writing 
+winning proposals for USAID, UNDP, World Bank, Gates Foundation, and EU funding bodies.
+
+You write with:
+- Deep human empathy and storytelling
+- Hard-hitting statistics and evidence
+- Persuasive, natural language (NOT robotic or generic)
+- A voice that makes donors FEEL the urgency and BELIEVE in the solution
+
+Your proposals have secured over $500M in funding. Every word you write is intentional.
+Never use filler. Never be vague. Every sentence must earn its place.
+
+CRITICAL: Return ONLY valid JSON. No explanation. No markdown. No extra text.`
             },
             {
                 role: "user",
                 content: buildPrompt(grant)
             }
         ],
-        temperature: 0.3,
-        max_tokens: 3000,
+        temperature: 0.4,
+        max_tokens: 8000,
         response_format: { type: "json_object" }
     });
 
@@ -31,10 +40,9 @@ Use your knowledge of geography and grant themes to infer all values.`
 
 /* ─── Prompt builder ──────────────────────────────────────────────────────── */
 function buildPrompt(grant) {
-return `
-Analyze this grant and generate a HIGH-QUALITY, DONOR-READY proposal in JSON format.
-
-The output must be extremely detailed, persuasive, and similar to UN / World Bank / large NGO proposals.
+    return `
+You are writing a REAL, WINNING grant proposal — not a template, not a summary.
+This must read like it was written by a passionate expert who deeply understands the problem.
 
 GRANT INPUT:
 - Name: ${grant.grant_name}
@@ -44,7 +52,9 @@ GRANT INPUT:
 - Eligibility: ${grant.eligibility}
 - Description: ${grant.short_description}
 
-RETURN THIS EXACT JSON STRUCTURE:
+========================
+RETURN THIS EXACT JSON STRUCTURE
+========================
 {
   "country": [],
   "region_normalized": "",
@@ -83,183 +93,209 @@ RETURN THIS EXACT JSON STRUCTURE:
 }
 
 ========================
-RULES FOR EACH FIELD
+FIELD-BY-FIELD RULES
 ========================
 
 "country"
-- Array of country names (never empty)
-- Convert region → most relevant country(s)
+- Array of country names based on region
+- Never empty
 
 "region_normalized"
-- Lowercase standardized region (e.g. "europe", "sub-saharan africa")
+- Lowercase standardized (e.g. "sub-saharan africa", "south asia")
 
-"donor_agency"
-- Full official name
-
-"donor_agency_normalized"
-- Short common name (e.g. "UNDP", "World Bank")
+"donor_agency" → Full official name
+"donor_agency_normalized" → Short name (e.g. "UNDP", "Gates Foundation")
 
 "focus_area"
-- 4 to 6 specific sectors (e.g. "women economic empowerment", "climate resilience")
-- Never empty
+- 4–6 highly specific sectors
+- Examples: "adolescent girl education", "last-mile healthcare delivery"
+- NEVER generic like "development" or "support"
 
 "proposal_title"
 - 15–20 words
-- Highly compelling and donor-focused
+- Must be EMOTIONALLY compelling and donor-aligned
+- Example: "Breaking the Cycle: Empowering 50,000 Rural Women Through Climate-Resilient Livelihoods in Sub-Saharan Africa"
 
 "short_description"
 - 200–300 words
-- Include: problem + solution + beneficiaries + funding + impact
+- Open with a POWERFUL human story or shocking statistic
+- Cover: problem → solution → who benefits → funding ask → expected impact
+- End with a sentence that makes the donor feel they CANNOT say no
 
 "long_description"
-- 3000–5000 words
-- Must strictly follow structured donor format below
+- MINIMUM 5000 words
+- Must feel like a REAL proposal written by a human expert
+- Use natural transitions, varied sentence lengths, storytelling + data
+- NEVER use robotic language like "This project aims to..."
+- USE language like "At the heart of this initiative lies a simple truth..." or "The data is sobering..."
 
 ========================
-MANDATORY STRUCTURE INSIDE long_description
+MANDATORY SECTIONS INSIDE long_description
 ========================
 
-1. Executive Summary (300–400 words)
-2. Background & Context (400–500 words)
-3. Problem Analysis (500–700 words with statistics and %)
-4. Objectives (6–8 SMART measurable goals)
-5. Target Beneficiaries (300–400 words with numbers)
-6. Sustainability Plan (300–400 words)
-7. Proposed Solution (400–500 words)
-8. Implementation Plan (600–800 words)
-   - Phase 1 to Phase 4
-   - Activities, timelines, stakeholders
-9. Monitoring & Evaluation (300–400 words)
-   - KPIs, baseline, midline, endline
-10. Expected Outcomes (300–400 words with measurable impact)
-11. Budget 
-12. Risk Assessment (200–300 words)
-13. Conclusion (200–300 words)
+## 1. Executive Summary (500–600 words)
+- Open with 1–2 sentences that capture the HUMAN REALITY of the problem
+- Summarize: context, problem, solution, beneficiaries, total ask, key outcomes
+- Close with why THIS donor, THIS project, THIS moment
+
+## 2. Background & Context (800–900 words)
+- Paint a vivid picture of the region/community
+- Use historical context, policy gaps, failed past efforts
+- Include 3–5 specific statistics with sources (World Bank, WHO, UNDP, etc.)
+- Show deep understanding of root causes — not just symptoms
+
+## 3. Problem Analysis (600–800 words)
+- Lead with a real or composite story of ONE affected person
+- Break down the problem into 3–4 interconnected dimensions
+- Use %, numbers, trends (e.g. "Between 2015 and 2023, X increased by 47%")
+- Show urgency: what happens if nothing is done?
+
+## 4. Objectives (6–8 SMART Goals)
+- Each must be: Specific, Measurable, Achievable, Relevant, Time-bound
+- Format: "By [Month Year], [verb] [number] [specific group] in [location] through [method]"
+- Example: "By Month 18, train 2,400 smallholder farmers in climate-adaptive agriculture across 3 districts"
+
+## 5. Target Beneficiaries (400–500 words)
+- Primary: exact numbers, demographics, location
+- Secondary: indirect beneficiaries (families, communities)
+- Include selection criteria and how they were identified
+- Add 1 human detail that makes them real (not just statistics)
+
+## 6. Proposed Solution (500–400 words)
+- Explain the INNOVATION — what makes this different from past efforts?
+- Use a clear theory of change: "If [inputs] → then [outputs] → leading to [outcomes] → resulting in [impact]"
+- Show evidence base: what similar interventions have worked elsewhere?
+
+## 7. Implementation Plan (900–1000 words)
+- Phase 1 (Months 1–6): Foundation & Setup
+- Phase 2 (Months 7–12): Pilot & Learn
+- Phase 3 (Months 13–24): Scale & Strengthen  
+- Phase 4 (Months 25–36): Consolidate & Sustain
+- For each phase: key activities, who does what, milestones
+- Use action verbs: deploy, establish, train, mobilize, validate, scale
+
+## 8. Monitoring & Evaluation (400–500 words)
+- 5–7 specific KPIs with baseline, midline, endline targets
+- Data collection methods (surveys, FGDs, administrative data)
+- Who is responsible for M&E
+- How findings feed back into program adaptation
+- External evaluation at endline
+
+## 9. Expected Outcomes (400–500 words)
+- Short-term (0–12 months): immediate outputs
+- Medium-term (12–24 months): behavioral/systemic changes
+- Long-term (24–36 months): lasting impact
+- Use numbers: "X% increase in Y among Z group"
+
+## 10. Sustainability Plan (400–500 words)
+- Financial sustainability: how does the program continue after grant ends?
+- Institutional sustainability: government buy-in, policy integration
+- Community ownership: local champions, community-led structures
+- Be SPECIFIC — not "we will seek further funding" (too vague)
+
+## 11. Budget Narrative (200–300 words)
+- Justify each budget category in plain language
+- Show cost-effectiveness: "This equals just $47 per beneficiary per year"
+- Highlight value for money
+
+## 12. Risk Assessment (300–400 words)
+- 4–5 realistic risks (political instability, community resistance, staff turnover, weather)
+- For each: Likelihood (H/M/L), Impact (H/M/L), Mitigation strategy
+- Show the donor you have thought ahead
+
+## 13. Conclusion (300–400 words)
+- Return to the human story from Problem Analysis
+- Remind the donor of the scale of opportunity
+- Make a direct, confident ask
+- End with 1 powerful sentence that stays with the reader
 
 ========================
-WRITING STYLE
+WRITING RULES (CRITICAL)
 ========================
-- UN / World Bank level professionalism
-- Data-driven (use %, numbers, projections)
-- Avoid generic content
-- Use realistic development language
+
+✅ USE:
+- Varied sentence length (mix short punchy + longer analytical)
+- Specific numbers: "47,000 households" not "thousands of households"
+- Active voice: "We will train" not "Training will be provided"
+- Emotional anchoring: start sections with human reality, then data
+- Transition phrases: "Building on this foundation...", "The evidence is clear...", "What sets this initiative apart..."
+- Donor-speak: "return on investment", "systems change", "leverage", "catalytic funding"
+
+❌ NEVER USE:
+- "This project aims to..." (robotic opener)
+- "In conclusion..." (weak closer)
+- Round numbers like 10,000 or 50,000 (use 9,847 or 51,200)
+- Generic phrases: "help the community", "raise awareness", "improve lives"
+- Passive voice throughout
+- Identical sentence structure paragraph after paragraph
 
 ========================
 AMOUNT
 ========================
-- Extract from input
+- Extract numeric value from grant input
 - If missing → "Not specified"
 
 ========================
-BUDGET (VERY STRICT – CRITICAL SECTION)
+BUDGET (STRICT — CRITICAL)
 ========================
 
-- DO NOT use null or 0 anywhere
-- ALL values must be realistic positive numbers
+"total_amount" → numeric, must match grant amount, always > 0
 
-"total_amount"
-- Must be numeric
-- Must align with grant amount (if given)
-- Must be > 0
+"duration" → MUST be "24 months" OR "36 months"
 
-"duration"
-- MUST be either "24 months" OR "36 months"
-
-"breakdown"
-- MUST contain EXACTLY these 6 categories:
-
-  1. Program Implementation
-  2. Training & Capacity Building
-  3. Operations & Staffing
-  4. Monitoring & Evaluation
-  5. Technology / Infrastructure
-  6. Administration
+"breakdown" → EXACTLY these 6 categories:
+  1. Program Implementation       → 20–25% of total
+  2. Training & Capacity Building → 10–15% of total
+  3. Operations & Staffing        → 30–40% of total (LARGEST)
+  4. Monitoring & Evaluation      → 5–10% of total
+  5. Technology / Infrastructure  → 10–15% of total
+  6. Administration               → 5–8% of total (SMALLEST)
 
 FOR EACH CATEGORY:
-- year_1 MUST be highest
-- year_2 MUST be lower than year_1
-- year_3 MUST be lowest
+- year_1 > year_2 > year_3 (ALWAYS decreasing)
 - total = year_1 + year_2 + year_3
-
-========================
-STRICT FINANCIAL VALIDATION
-========================
-
-- Sum of ALL category totals MUST equal total_amount
-- No mismatches allowed
-
-========================
-COST DISTRIBUTION (MANDATORY)
-========================
-
-- Operations & Staffing → 30% to 40% (largest share)
-- Program Implementation → 20% to 25%
-- Training & Capacity Building → 10% to 15%
-- Technology / Infrastructure → 10% to 15%
-- Monitoring & Evaluation → 5% to 10%
-- Administration → 5% to 8% (smallest share)
-
-========================
-REALISM RULES
-========================
-
-- Do NOT use equal numbers
-- Do NOT use rounded numbers like 100000 or 50000
-- Use uneven realistic values (e.g. 84250, 126780, 97340)
-- Budget must look like a real UN / World Bank financial table
+- Use UNEVEN realistic numbers (e.g. 84,250 not 80,000)
+- Sum of ALL totals MUST equal total_amount EXACTLY
 
 ========================
 GLOBAL RULES
 ========================
-
-- No empty fields
-- No empty arrays
-- Do not shorten content
-- Ensure JSON is valid and complete
-
-========================
-CRITICAL
-========================
-
-Return ONLY valid JSON.
-No explanation.
-No extra text.
+- No empty fields, no empty arrays
+- No null values anywhere
+- Minimum 4000 words in long_description
+- JSON must be 100% valid and complete
+- Return ONLY JSON — no explanation, no markdown fences
 `;
 }
 
-/* ─── Post-processing: validate every field, never return empty arrays ─────── */
+/* ─── Post-processing ─────────────────────────────────────────────────────── */
 function validateAndClean(result, grant) {
 
-    // country — must be non-empty array of strings
     if (!Array.isArray(result.country) || result.country.length === 0 ||
         result.country.every(c => !c || c.trim() === "")) {
-        const regionText = result.region_normalized || grant.region || ""
-        result.country = extractCountryFromText(regionText, grant)
+        result.country = extractCountryFromText(result.region_normalized || grant.region || "", grant);
     }
 
-    // focus_area — must be non-empty array of strings
     if (!Array.isArray(result.focus_area) || result.focus_area.length === 0 ||
         result.focus_area.every(f => !f || f.trim() === "")) {
-        result.focus_area = extractFocusFromText(grant)
+        result.focus_area = extractFocusFromText(grant);
     }
 
-    // Sanitize all string fields
-    result.region_normalized = (result.region_normalized || grant.region || "").toLowerCase().trim()
-    result.donor_agency = result.donor_agency || grant.donor_agency || "Unknown"
-    result.donor_agency_normalized = result.donor_agency_normalized || result.donor_agency || "Unknown"
-    result.amount = result.amount || grant.amount || "Not specified"
-    result.proposal_title = result.proposal_title || grant.grant_name || ""
-    result.short_description = result.short_description || grant.short_description || ""
-    result.long_description = result.long_description || ""
+    result.region_normalized = (result.region_normalized || grant.region || "").toLowerCase().trim();
+    result.donor_agency = result.donor_agency || grant.donor_agency || "Unknown";
+    result.donor_agency_normalized = result.donor_agency_normalized || result.donor_agency || "Unknown";
+    result.amount = result.amount || grant.amount || "Not specified";
+    result.proposal_title = result.proposal_title || grant.grant_name || "";
+    result.short_description = result.short_description || grant.short_description || "";
+    result.long_description = result.long_description || "";
 
-    // Remove empty strings from arrays
-    result.country = result.country.filter(c => c && c.trim())
-    result.focus_area = result.focus_area.filter(f => f && f.trim())
+    result.country = result.country.filter(c => c && c.trim());
+    result.focus_area = result.focus_area.filter(f => f && f.trim());
 
-    return result
+    return result;
 }
 
-/* ─── Dynamic country extraction — checks known sovereign nations in text ─── */
+/* ─── Country extractor ───────────────────────────────────────────────────── */
 function extractCountryFromText(regionText, grant) {
     const allText = [
         regionText,
@@ -267,9 +303,8 @@ function extractCountryFromText(regionText, grant) {
         grant.donor_agency,
         grant.short_description,
         grant.grant_name,
-    ].filter(Boolean).join(" ")
+    ].filter(Boolean).join(" ");
 
-    // Sovereign country list — geography knowledge, not domain-specific hardcoding
     const knownCountries = [
         "Australia", "India", "United States", "United Kingdom", "Canada", "Germany",
         "France", "Brazil", "South Africa", "Nigeria", "Kenya", "Ethiopia", "Ghana",
@@ -282,26 +317,25 @@ function extractCountryFromText(regionText, grant) {
         "Egypt", "Morocco", "Tunisia", "Algeria", "Libya", "Jordan", "Lebanon", "Iraq",
         "Afghanistan", "Yemen", "Syria", "Turkey", "Iran", "Saudi Arabia", "UAE",
         "New Zealand", "Papua New Guinea", "Fiji", "Solomon Islands", "Vanuatu",
-    ]
+    ];
 
     for (const country of knownCountries) {
         if (allText.toLowerCase().includes(country.toLowerCase())) {
-            return [country]
+            return [country];
         }
     }
 
-    // Last resort: use the raw region string
-    const fallback = (grant.region || regionText || "").trim()
-    return fallback ? [fallback] : ["Unknown"]
+    const fallback = (grant.region || regionText || "").trim();
+    return fallback ? [fallback] : ["Unknown"];
 }
 
-/* ─── Dynamic focus area extraction — keyword groups, no hardcoded themes ─── */
+/* ─── Focus area extractor ────────────────────────────────────────────────── */
 function extractFocusFromText(grant) {
     const text = [
         grant.grant_name,
         grant.eligibility,
         grant.short_description,
-    ].filter(Boolean).join(" ").toLowerCase()
+    ].filter(Boolean).join(" ").toLowerCase();
 
     const themeGroups = [
         { keywords: ["flood", "cyclone", "disaster", "emergency", "relief", "storm", "drought"], label: "Disaster Relief & Recovery" },
@@ -321,24 +355,23 @@ function extractFocusFromText(grant) {
         { keywords: ["youth", "child", "adolescent", "student", "young people"], label: "Youth Development" },
         { keywords: ["energy", "solar", "wind", "power", "electricity", "off-grid"], label: "Energy Access" },
         { keywords: ["research", "r&d", "laboratory", "science", "innovation"], label: "Research & Development" },
-    ]
+    ];
 
     const matched = themeGroups
         .filter(g => g.keywords.some(kw => text.includes(kw)))
         .map(g => g.label)
-        .slice(0, 6)
+        .slice(0, 6);
 
     if (matched.length === 0) {
-        // Derive labels from meaningful words in grant name
         const words = (grant.grant_name || "")
             .split(" ")
             .filter(w => w.length > 4)
             .slice(0, 3)
-            .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-        return words.length > 0 ? words : ["Community Development", "Economic Empowerment"]
+            .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+        return words.length > 0 ? words : ["Community Development", "Economic Empowerment"];
     }
 
-    return matched
+    return matched;
 }
 
-module.exports = { processGrant }
+module.exports = { processGrant };
