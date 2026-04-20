@@ -1061,21 +1061,18 @@ function isGrantAllowed(g) {
 
 exports.createGrantScrap = async (req, res) => {
 
-    // ✅ Static URLs
-    const urls = [
-        "https://business.gov.au/grants-and-programs/inland-river-flood-event-freight-subsidy-sa",
-        "https://www.ihfc.co.in/important-announcements/medtech-revolution-starts-here/"
-    ];
-
     const finalResults = [];
     const OPENAI_DELAY_MS = 3000;
     let browser;
+    let urls = [];
 
     try {
 
-        // 🔥 STEP 0: Fetch dynamic URLs from API
+        // 🔥 STEP 0: Fetch dynamic URLs only
         try {
-            const apiRes = await axios.get("http://13.60.188.34:7777/api/admin/getUrlLink");
+            const apiRes = await axios.get("http://13.60.217.64:7777/api/admin/getUrlLink", {
+                timeout: 10000,
+            });
 
             const dynamicUrls = apiRes.data.flatMap(item =>
                 item.links
@@ -1083,23 +1080,22 @@ exports.createGrantScrap = async (req, res) => {
                     .filter(link => link.startsWith("http"))
             );
 
-            // merge static + dynamic
-            urls.push(...dynamicUrls);
-
-            // remove duplicates
-            const uniqueUrls = [...new Set(urls)];
-            urls.length = 0;
-            urls.push(...uniqueUrls);
+            urls = [...new Set(dynamicUrls)];
 
             console.log("🌐 Total URLs:", urls.length);
 
         } catch (err) {
             console.error("❌ Failed to fetch dynamic URLs:", err.message);
+            return res.status(500).json({ success: false, message: "URL fetch failed" });
         }
 
-        // 🚀 Launch browser (✅ FIXED HERE)
+        if (urls.length === 0) {
+            return res.status(400).json({ success: false, message: "No URLs found" });
+        }
+
+        // 🚀 Launch browser
         browser = await puppeteer.launch({
-            executablePath: "/usr/bin/chromium-browser", // 👈 IMPORTANT FIX
+            executablePath: "/usr/bin/chromium-browser",
             headless: true,
             args: [
                 "--no-sandbox",
@@ -1198,29 +1194,23 @@ exports.createGrantScrap = async (req, res) => {
                                 short_description: g.short_description || null,
                                 source_url: url,
                             },
-
                             title: g.grant_name,
                             donor: g.donor_agency || "Unknown",
                             category: "grant",
-
                             geography: {
                                 region: g.region || null,
                                 region_normalized: g.region ? g.region.toLowerCase().trim() : null,
                             },
-
                             financials: {
                                 raw: resolvedAmount,
                                 maxAmount: null,
                                 currency: "Unknown",
                             },
-
                             deadline: isValidDate ? parsedDeadline : null,
                             status: g.status || "active",
                             isOpen: true,
-
                             eligibility: g.eligibility || null,
                             shortDescription: g.short_description || null,
-
                             searchText: [g.grant_name, g.donor_agency, g.region, g.eligibility]
                                 .filter(Boolean)
                                 .join(" ")
@@ -1234,7 +1224,6 @@ exports.createGrantScrap = async (req, res) => {
                 const uniqueGrants = Array.from(uniqueMap.values());
 
                 finalResults.push(...uniqueGrants);
-
                 console.log(`✅ ${uniqueGrants.length} grants from ${url}`);
 
             } catch (err) {
@@ -1268,7 +1257,6 @@ exports.createGrantScrap = async (req, res) => {
         if (browser) await browser.close();
     }
 };
-
 // =========================
 // 🔥 GRANTS DETAIL CONTROLLER
 // =========================
