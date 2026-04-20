@@ -2,10 +2,14 @@ const mongoose = require("mongoose");
 
 const grantLinkSchema = new mongoose.Schema(
     {
+        name: {
+            type: String,
+            default: "main"
+        },
         grantId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "GrantScrap",
-            required: true,
+            required: false,
             index: true
         },
 
