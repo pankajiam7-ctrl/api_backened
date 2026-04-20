@@ -151,12 +151,21 @@ exports.publishGrant = async (req, res) => {
 
 exports.updateLink = async (req, res) => {
     try {
+        // Validate input
+        if (!req.body.id) {
+            return res.status(400).json({ message: "ID is required" });
+        }
 
-        const data = await Grant.findOneAndUpdate(
+        const data = await GrantLink.findOneAndUpdate(
             { _id: req.body.id },
-            { $set: { imageUrl: req.body.imageUrl } },
-            { new: true, upsert: false } // ✅ important fixes
+            { $set: { links: req.body.links } },
+            { new: true, upsert: false }
         );
+
+        if (!data) {
+            return res.status(404).json({ message: "Document not found" });
+        }
+
         res.json(data);
 
     } catch (err) {
