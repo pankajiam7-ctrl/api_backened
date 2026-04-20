@@ -151,25 +151,11 @@ exports.publishGrant = async (req, res) => {
 
 exports.updateLink = async (req, res) => {
     try {
-        // 1. Try to find by existing link
-        let data = await GrantLink.findOne({ links: req.body.links[0] });
-
-        if (!data) {
-            // 2. First time - find any grant and add the link
-            data = await GrantLink.findOneAndUpdate(
-                {},                                  // find first document
-                { $set: { links: req.body.links } },
-                { new: true }
-            );
-        } else {
-            // Already exists - update it
-            data = await GrantLink.findOneAndUpdate(
-                { links: req.body.links[0] },
-                { $set: { links: req.body.links } },
-                { new: true }
-            );
-        }
-
+        const data = await GrantLink.findOneAndUpdate(
+            { links: req.body.links[0] },
+            { $set: { links: req.body.links } },
+            { new: true, upsert: true }  // ✅ creates new doc if not found
+        );
         res.json(data);
     } catch (err) {
         res.status(500).json({ message: err.message });
