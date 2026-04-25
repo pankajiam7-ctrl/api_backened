@@ -18,7 +18,10 @@ const {
     addPdfURL,
     getPdf,
     saveGrantJSON,
-    getGrantsByTitleURL
+    getGrantsByTitleURL,
+    searchGrant,
+    latestGrant,
+    typeSearch
 } = require("../controllers/grant.controller");
 
 // Scraper
@@ -26,13 +29,19 @@ router.post("/scrap", createGrantScrap);
 router.post("/scrapDetails", createGrantsDetail);
 router.post("/addSample", updateGrantDetails);
 router.post('/addPdf', addPdfURL);
-router.get('/getPdf',getPdf)
+router.get('/getPdf', getPdf);
 
 // Static / filter routes (must come before /:id)
 router.get("/search", searchGrants);
 router.get("/filters/meta", getFiltersMeta);
 router.get("/featured", getFeatured);
 router.get("/expiring-soon", expiringSoon);
+//Search
+router.get("/latest-grant/:type", latestGrant);
+router.get("/type-search", typeSearch);
+
+// ✅ Move here ABOVE /:titleUrl
+router.get('/search-grants', searchGrant);
 
 // CRUD
 router.get("/", getGrants);
@@ -41,10 +50,9 @@ router.put("/:id", updateGrant);
 router.delete("/:id", deleteGrant);
 router.patch("/:id", updateSingleField);
 
+router.post('/save-grants', saveGrantJSON); // ✅ move above /:titleUrl too
 router.get("www/:id", getGrantById);
-router.get('/:titleUrl', getGrantsByTitleURL);
-router.post('/save-grants', saveGrantJSON);
-
+router.get('/:titleUrl', getGrantsByTitleURL); // ⚠️ this catches everything above it
 
 
 

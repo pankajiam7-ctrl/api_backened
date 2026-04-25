@@ -5,7 +5,7 @@ const app = require("./app");
 
 console.log("ENV CHECK:", process.env.MONGO_URI); // 👈 debug
 
-mongoose.connect("mongodb+srv://pankaj16289_db_user:vtPtwrjJc1OInVY6@cluster0.wdrf7ce.mongodb.net/gnodb?retryWrites=true&w=majority&appName=Cluster0")
+mongoose.connect("mongodb+srv://grant_user:Pankaj%40123456@cluster0.3l6pzzy.mongodb.net/gr?retryWrites=true&w=majority")
     .then(() => console.log("✅ DB Connected"))
     .catch(err => console.error("❌ DB Error:", err.messages));
 
