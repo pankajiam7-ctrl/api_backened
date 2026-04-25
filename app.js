@@ -39,6 +39,6 @@ app.use("/api/proposals", proposalRoutes);
 app.use("/api/admin", adminRoutes);
 app.use('/api/payment',paymentRoutes);
 
-//startCronJobs();
+startCronJobs();
 
 module.exports = app;

@@ -78,25 +78,25 @@ async function sendGrantEmails(label = "Cron") {
 // ── Register all cron schedules ──────────────────────────────────────────────
 function startCronJobs() {
 
-  // ← Remove this after testing
-  cron.schedule("* * * * *", () => {
-    sendGrantEmails("TEST-EVERY-MINUTE");
-  });
+  // // ← Remove this after testing
+  // cron.schedule("* * * * *", () => {
+  //   sendGrantEmails("TEST-EVERY-MINUTE");
+  // });
 
-  // Every day at 8:00 AM
-  cron.schedule("0 8 * * *", () => {
-    sendGrantEmails("Daily-8AM");
-  }, { timezone: "Asia/Kolkata" });
+  // // Every day at 8:00 AM
+  // cron.schedule("0 8 * * *", () => {
+  //   sendGrantEmails("Daily-8AM");
+  // }, { timezone: "Asia/Kolkata" });
 
-  // Every Monday at 9:00 AM
-  cron.schedule("0 9 * * 1", () => {
-    sendGrantEmails("Weekly-Monday");
-  }, { timezone: "Asia/Kolkata" });
+  // // Every Monday at 9:00 AM
+  // cron.schedule("0 9 * * 1", () => {
+  //   sendGrantEmails("Weekly-Monday");
+  // }, { timezone: "Asia/Kolkata" });
 
-  // 1st of every month at 8:00 AM
-  cron.schedule("0 8 1 * *", () => {
-    sendGrantEmails("Monthly-1st");
-  }, { timezone: "Asia/Kolkata" });
+  // // 1st of every month at 8:00 AM
+  // cron.schedule("0 8 1 * *", () => {
+  //   sendGrantEmails("Monthly-1st");
+  // }, { timezone: "Asia/Kolkata" });
 
   console.log("Cron jobs registered: Daily 8AM | Monday 9AM | Monthly 1st");
 }
