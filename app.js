@@ -1,6 +1,6 @@
 const express = require("express");
 const cors = require("cors"); // 👈 add this
-const { startCronJobs } = require("./job/emailCronJob");
+
 
 const authRoutes = require("./routes/auth.routes");
 const userRoutes = require("./routes/user.routes");
@@ -39,6 +39,5 @@ app.use("/api/proposals", proposalRoutes);
 app.use("/api/admin", adminRoutes);
 app.use('/api/payment',paymentRoutes);
 
-//startCronJobs();
 
 module.exports = app;
