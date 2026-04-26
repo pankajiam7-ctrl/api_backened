@@ -88,7 +88,7 @@ function buildEmailHtml(userEmail, grants) {
               text-transform:uppercase;
             ">Grant #${String(index + 1).padStart(2, "0")}</div>
 
-            <!-- Grant Name -->
+            <!-- Grant Name    -->
             <div style="
               font-size:15px;
               font-weight:700;
