@@ -4,7 +4,7 @@ const cron           = require("node-cron");
 const transporter    = require("../config/mailer");
 const buildEmailHtml = require("./emailTemplate");
 const LeadUser       = require("../models/leaduser.model");
-const { GrantCron }  = require("../models/grant.model");
+const { GrantCron }  = require("../models/grantScrap.model");
 
 // ── Helper: sleep N milliseconds ──────────────────────────────────────────────
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
