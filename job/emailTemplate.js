@@ -298,7 +298,6 @@ function buildEmailHtml(userEmail, grants) {
           <td style="text-align:center;padding:10px;color:#6b8aaa;font-size:10px;line-height:1.9;">
             <div style="font-weight:700;color:#3d5a73;">GrantHub NGO</div>
             <div>Empowering communities through access to funding.</div>
-            <div>You received this because you subscribed to GrantHub NGO alerts.</div>
             <div>© ${new Date().getFullYear()} GrantHub NGO. All rights reserved.</div>
           </td>
         </tr>
