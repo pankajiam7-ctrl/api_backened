@@ -1,5 +1,5 @@
 const User = require("../models/user.model");
-const Grant = require("../models/grantScrap.model");
+const { GrantScrap: Grant } = require("../models/grantScrap.model");
 const Proposal = require("../models/proposal.model");
 const GrantLink = require("../models/grantLink.model");
 const cloudinary = require('../config/cloudinary');
@@ -151,13 +151,20 @@ exports.publishGrant = async (req, res) => {
 
 const mongoose = require("mongoose");
 
+
 exports.updateImage = async (req, res) => {
     try {
+        const { id, imageUrl } = req.body;
+  
         const data = await Grant.findOneAndUpdate(
-            { _id: new mongoose.Types.ObjectId(req.body.id) }, // ✅ FIX
-            { $set: { imageUrl: req.body.imageUrl } },
-            { new: true }
+            { _id: new mongoose.Types.ObjectId(id) },
+            { $set: { imageUrl } },
+            { returnDocument: 'after' } // ✅ updated
         );
+
+        if (!data) {
+            return res.status(404).json({ message: "Grant not found" });
+        }
 
         res.json(data);
     } catch (err) {
