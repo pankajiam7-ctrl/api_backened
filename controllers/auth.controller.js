@@ -169,7 +169,7 @@ exports.sendOtp = async (req, res) => {
           
           <div style="text-align:center;margin-bottom:24px;">
             <div style="background:#0f2d57;color:#fff;font-size:24px;font-weight:900;width:52px;height:52px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;">G</div>
-            <h2 style="color:#0f2d57;margin:12px 0 4px;">GrantFlow</h2>
+            <h2 style="color:#0f2d57;margin:12px 0 4px;">GrantHub</h2>
             <p style="color:#6b7280;margin:0;font-size:14px;">Email Verification</p>
           </div>
 
