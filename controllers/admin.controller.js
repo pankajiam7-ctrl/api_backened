@@ -154,23 +154,36 @@ const mongoose = require("mongoose");
 
 exports.updateImage = async (req, res) => {
     try {
+        console.log("REQ BODY:", req.body);
         const { id, imageUrl } = req.body;
-  
-        const data = await Grant.findOneAndUpdate(
-            { _id: new mongoose.Types.ObjectId(id) },
-            { $set: { imageUrl } },
-            { returnDocument: 'after' } // ✅ updated
+
+        if (!id || !imageUrl) {
+            return res.status(400).json({ message: "id & imageUrl required" });
+        }
+
+        const { ObjectId } = require("mongoose").Types;
+
+        const result = await Grant.collection.findOneAndUpdate(
+            { _id: new ObjectId(id) },
+            { $set: { imageUrl: imageUrl } },
+            { returnDocument: "after" }
         );
 
-        if (!data) {
+        console.log("RAW RESULT imageUrl:", result?.imageUrl);
+
+        if (!result) {
             return res.status(404).json({ message: "Grant not found" });
         }
 
-        res.json(data);
+        res.json(result);
     } catch (err) {
+        console.error(err);
         res.status(500).json({ message: err.message });
     }
 };
+
+
+
 exports.updateLink = async (req, res) => {
     try {
         const data = await GrantLink.findOneAndUpdate(
