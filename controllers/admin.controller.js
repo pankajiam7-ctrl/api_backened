@@ -149,6 +149,19 @@ exports.publishGrant = async (req, res) => {
     }
 };
 
+exports.updateImage  = async (req, res) => {
+    try {
+     const data = await Grant.findOneAndUpdate(
+            { _id: req.body.id },
+            { $set: { imageUrl: req.body.imageUrl } },
+            { new: true, upsert: false } // ✅ important fixes
+        );
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+ }
+}
+
 exports.updateLink = async (req, res) => {
     try {
         const data = await GrantLink.findOneAndUpdate(

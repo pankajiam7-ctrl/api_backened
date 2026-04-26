@@ -7,6 +7,7 @@ const {
     updateUserPlan,
     publishGrant,
     updateLink,
+    updateImage,
     getLink,
     getCludinaryLink
 } = require("../controllers/admin.controller");
@@ -16,7 +17,8 @@ router.get("/users", getUsers);
 router.get("/stats", protect, getStats);
 router.put("/users/:id/plan", protect, updateUserPlan);
 router.put("/grants/:id/publish", protect, publishGrant);
-router.post('/updateLink',updateLink)
+router.post('/updateLink',updateLink);
+router.post('/updateImage',updateImage)
 router.get('/getUrlLink',getLink);
 router.get('/linkCloudinary', getCludinaryLink);
 

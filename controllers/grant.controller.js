@@ -928,21 +928,61 @@ const APPLY_LINK_PATTERNS = /apply|register|submit|application|enroll|signup/i;
 const BANNED_KEYWORDS = ["award", "medal", "internship", "fellowship", "prize", "recognition", "scholarship", "competition"];
 const SKIP_DOMAINS = ["unpartnerportal.org"];
 
+// ─── LOGGER ──────────────────────────────────────────────────────────────────
+const LOG_PREFIX = {
+    info:    "ℹ️ ",
+    success: "✅ ",
+    warn:    "⚠️ ",
+    error:   "❌ ",
+    skip:    "⏭️ ",
+    save:    "💾 ",
+    ai:      "🤖 ",
+    focus:   "🎯 ",
+    url:     "🌐 ",
+    memory:  "🧠 ",
+    time:    "⏱️ ",
+    money:   "💰 ",
+    db:      "🗄️ ",
+    search:  "🔍 ",
+    country: "🌍 ",
+};
 
+function log(type, ...args) {
+    const prefix = LOG_PREFIX[type] || "   ";
+    console.log(`${prefix}`, ...args);
+}
+
+function logSeparator(label = "") {
+    const line = "─".repeat(60);
+    if (label) {
+        const pad = Math.max(0, Math.floor((58 - label.length) / 2));
+        console.log(`\n┌${line}┐`);
+        console.log(`│${" ".repeat(pad)}${label}${" ".repeat(60 - pad - label.length)}│`);
+        console.log(`└${line}┘`);
+    } else {
+        console.log(`\n${line}`);
+    }
+}
+
+// ─── SLEEP ───────────────────────────────────────────────────────────────────
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// ─── INFER YEAR ──────────────────────────────────────────────────────────────
 function inferYear(dateStr) {
     const now = new Date();
     const currentYear = now.getFullYear();
     const withCurrentYear = new Date(`${dateStr} ${currentYear}`);
     if (!isNaN(withCurrentYear)) {
-        return withCurrentYear < now ? `${dateStr} ${currentYear + 1}` : `${dateStr} ${currentYear}`;
+        return withCurrentYear < now
+            ? `${dateStr} ${currentYear + 1}`
+            : `${dateStr} ${currentYear}`;
     }
     return `${dateStr} ${currentYear}`;
 }
 
+// ─── EXTRACT DEADLINE ────────────────────────────────────────────────────────
 function extractDeadline(text) {
     if (!text) return null;
     const MONTH_PATTERN = /(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|January|February|March|April|May|June|July|August|September|October|November|December)/i;
@@ -983,6 +1023,7 @@ function extractDeadline(text) {
     return null;
 }
 
+// ─── EXTRACT HIDDEN DATES ────────────────────────────────────────────────────
 function extractHiddenDates(rawHtml) {
     if (!rawHtml) return null;
     const checks = [
@@ -1007,6 +1048,7 @@ function extractHiddenDates(rawHtml) {
     return null;
 }
 
+// ─── EXTRACT AMOUNT ──────────────────────────────────────────────────────────
 function extractAmount(text) {
     if (!text) return null;
     const contextPatterns = [
@@ -1019,7 +1061,10 @@ function extractAmount(text) {
     for (let pattern of contextPatterns) {
         for (let match of [...text.matchAll(pattern)]) {
             const candidate = match[1].trim();
-            if (/\d/.test(candidate)) { result = candidate.replace(/\s+/g, " ").slice(0, 60).trim(); break; }
+            if (/\d/.test(candidate)) {
+                result = candidate.replace(/\s+/g, " ").slice(0, 60).trim();
+                break;
+            }
         }
         if (result) break;
     }
@@ -1034,6 +1079,7 @@ function extractAmount(text) {
     return result || null;
 }
 
+// ─── PARSE MAX AMOUNT ────────────────────────────────────────────────────────
 function parseMaxAmount(rawAmount) {
     if (!rawAmount) return null;
     const cleaned = rawAmount.replace(/,/g, "").toLowerCase();
@@ -1049,6 +1095,7 @@ function parseMaxAmount(rawAmount) {
     return Math.round(num);
 }
 
+// ─── PARSE CURRENCY ──────────────────────────────────────────────────────────
 function parseCurrency(rawAmount) {
     if (!rawAmount) return "Unknown";
     if (/INR|Rs|₹|crore|lakh/i.test(rawAmount)) return "INR";
@@ -1060,6 +1107,7 @@ function parseCurrency(rawAmount) {
     return "Unknown";
 }
 
+// ─── PARSE ELIGIBILITY ───────────────────────────────────────────────────────
 function parseEligibility(eligibility) {
     if (!eligibility) return [];
     if (Array.isArray(eligibility)) return eligibility.slice(0, 5);
@@ -1070,20 +1118,101 @@ function parseEligibility(eligibility) {
         .slice(0, 5);
 }
 
-// ─── FIX: parse inferred_focus_areas safely ───────────────────────────────────
-function parseFocusAreas(focusAreas) {
-    if (!focusAreas) return [];
-    if (Array.isArray(focusAreas)) return focusAreas.slice(0, 5).map(f => String(f).toLowerCase().trim());
+// ─── PARSE FOCUS AREAS ───────────────────────────────────────────────────────
+function parseFocusAreas(focusAreas, grantName = "") {
+    const tag = grantName ? `[${grantName.slice(0, 30)}]` : "";
+
+    if (!focusAreas) {
+        log("warn", `${tag} inferred_focus_areas: null/undefined received from AI`);
+        return [];
+    }
+
+    if (Array.isArray(focusAreas)) {
+        const result = focusAreas
+            .map(f => String(f).toLowerCase().trim())
+            .filter(f => f.length > 1)
+            .slice(0, 5);
+        log("focus", `${tag} focus_areas (array path): [${result.join(", ")}]`);
+        return result;
+    }
+
     if (typeof focusAreas === "string") {
-        return focusAreas
+        if (focusAreas.trim().startsWith("[")) {
+            try {
+                const parsed = JSON.parse(focusAreas);
+                if (Array.isArray(parsed)) {
+                    const result = parsed
+                        .map(f => String(f).toLowerCase().trim())
+                        .filter(f => f.length > 1)
+                        .slice(0, 5);
+                    log("focus", `${tag} focus_areas (parsed string JSON): [${result.join(", ")}]`);
+                    return result;
+                }
+            } catch (e) {
+                log("warn", `${tag} Failed to JSON.parse string focus_areas: ${e.message}`);
+            }
+        }
+        const result = focusAreas
             .split(/[,;]/)
             .map(s => s.trim().toLowerCase())
             .filter(s => s.length > 1)
             .slice(0, 5);
+        log("focus", `${tag} focus_areas (split string): [${result.join(", ")}]`);
+        return result;
     }
+
+    log("warn", `${tag} inferred_focus_areas unexpected type: "${typeof focusAreas}"`);
     return [];
 }
 
+// ─── PARSE COUNTRIES ─────────────────────────────────────────────────────────
+function parseCountries(countries, grantName = "") {
+    const tag = grantName ? `[${grantName.slice(0, 30)}]` : "";
+
+    if (!countries) {
+        log("warn", `${tag} inferred_countries: null/undefined received from AI`);
+        return [];
+    }
+
+    if (Array.isArray(countries)) {
+        const result = countries
+            .map(c => String(c).trim())
+            .filter(c => c.length > 1)
+            .slice(0, 10);
+        log("country", `${tag} countries (array path): [${result.join(", ")}]`);
+        return result;
+    }
+
+    if (typeof countries === "string") {
+        if (countries.trim().startsWith("[")) {
+            try {
+                const parsed = JSON.parse(countries);
+                if (Array.isArray(parsed)) {
+                    const result = parsed
+                        .map(c => String(c).trim())
+                        .filter(c => c.length > 1)
+                        .slice(0, 10);
+                    log("country", `${tag} countries (parsed string JSON): [${result.join(", ")}]`);
+                    return result;
+                }
+            } catch (e) {
+                log("warn", `${tag} Failed to JSON.parse string countries: ${e.message}`);
+            }
+        }
+        const result = countries
+            .split(/[,;]/)
+            .map(s => s.trim())
+            .filter(s => s.length > 1)
+            .slice(0, 10);
+        log("country", `${tag} countries (split string): [${result.join(", ")}]`);
+        return result;
+    }
+
+    log("warn", `${tag} inferred_countries unexpected type: "${typeof countries}"`);
+    return [];
+}
+
+// ─── EXTRACT APPLY URL ───────────────────────────────────────────────────────
 function extractApplyUrl(links, rawHtml, sourceUrl) {
     const applyLink = links.find(l => APPLY_LINK_PATTERNS.test(l));
     if (applyLink) return applyLink;
@@ -1102,6 +1231,7 @@ function extractApplyUrl(links, rawHtml, sourceUrl) {
     return sourceUrl;
 }
 
+// ─── CLEAN TEXT ──────────────────────────────────────────────────────────────
 function cleanText(text) {
     return text
         .replace(/\s+/g, " ")
@@ -1110,19 +1240,29 @@ function cleanText(text) {
         .slice(0, 18000);
 }
 
+// ─── IS GRANT ALLOWED ────────────────────────────────────────────────────────
 function isGrantAllowed(g) {
-    if (g.type !== "grant") return false;
+    if (g.type !== "grant") {
+        log("skip", `Not type=grant (type="${g.type}"): ${g.grant_name}`);
+        return false;
+    }
     const name = (g.grant_name || "").toLowerCase();
     const hasGrantSignal = /grant|fund|funding|scheme|programme|program|support|subsidy/.test(name);
     if (hasGrantSignal) return true;
-    return !BANNED_KEYWORDS.some(k => name.includes(k));
+    const banned = BANNED_KEYWORDS.find(k => name.includes(k));
+    if (banned) {
+        log("skip", `Banned keyword "${banned}": ${g.grant_name}`);
+        return false;
+    }
+    return true;
 }
 
+// ─── FETCH PAGE TEXT ─────────────────────────────────────────────────────────
 async function fetchPageText(url, browser) {
     let text = "", links = [], rawHtml = "";
 
-    // Axios with strong headers
     try {
+        log("url", `Fetching via Axios: ${url}`);
         const response = await axios.get(url, {
             timeout: 20000,
             headers: {
@@ -1132,14 +1272,6 @@ async function fetchPageText(url, browser) {
                 "Accept-Encoding": "gzip, deflate, br",
                 "Connection": "keep-alive",
                 "Cache-Control": "max-age=0",
-                "sec-ch-ua": '"Chromium";v="122", "Not(A:Brand";v="24"',
-                "sec-ch-ua-mobile": "?0",
-                "sec-ch-ua-platform": '"Windows"',
-                "sec-fetch-dest": "document",
-                "sec-fetch-mode": "navigate",
-                "sec-fetch-site": "none",
-                "sec-fetch-user": "?1",
-                "Upgrade-Insecure-Requests": "1",
             }
         });
         rawHtml = response.data;
@@ -1160,14 +1292,18 @@ async function fetchPageText(url, browser) {
             } catch { }
         });
 
-        if (text.length > 300) return { text, rawHtml, links: [...new Set(links)] };
+        if (text.length > 300) {
+            log("success", `Axios OK — text: ${text.length} chars, links: ${links.length}`);
+            return { text, rawHtml, links: [...new Set(links)] };
+        }
+        log("warn", `Axios returned too little text (${text.length} chars), falling back to Puppeteer`);
     } catch (err) {
-        console.log(`  ↩ Axios failed, using Puppeteer: ${url}`);
+        log("warn", `Axios failed (${err.message}), falling back to Puppeteer`);
     }
 
-    // Stealth Puppeteer fallback
     let page;
     try {
+        log("url", `Fetching via Puppeteer: ${url}`);
         page = await browser.newPage();
         await page.setExtraHTTPHeaders({
             "Accept-Language": "en-US,en;q=0.9",
@@ -1175,8 +1311,6 @@ async function fetchPageText(url, browser) {
         });
         await page.setViewport({ width: 1920, height: 1080 });
         await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
-
-        // SPA render wait
         await new Promise(resolve => setTimeout(resolve, 3000));
         await Promise.race([
             page.waitForSelector("main, article, .content, body"),
@@ -1201,8 +1335,9 @@ async function fetchPageText(url, browser) {
                 .map(a => a.href).filter(Boolean);
         }, DETAIL_LINK_PATTERNS.source);
 
+        log("success", `Puppeteer OK — text: ${text.length} chars, links: ${links.length}`);
     } catch (puppeteerErr) {
-        console.error(`  ❌ Puppeteer also failed: ${url}`, puppeteerErr.message);
+        log("error", `Puppeteer also failed: ${puppeteerErr.message}`);
     } finally {
         if (page) await page.close();
     }
@@ -1210,20 +1345,31 @@ async function fetchPageText(url, browser) {
     return { text, rawHtml, links: [...new Set(links)] };
 }
 
+// ─── EXTRACT PDF TEXT ────────────────────────────────────────────────────────
 async function extractPDFText(pdfUrl) {
     try {
+        log("url", `Extracting PDF: ${pdfUrl}`);
         const res = await axios.get(pdfUrl, { responseType: "arraybuffer", timeout: 30000, headers: { "User-Agent": "Mozilla/5.0" } });
         const data = await pdf(res.data);
+        log("success", `PDF extracted: ${(data.text || "").length} chars`);
         return data.text || "";
-    } catch { return ""; }
+    } catch (e) {
+        log("warn", `PDF extraction failed: ${e.message}`);
+        return "";
+    }
 }
 
+// ─── DEEP CRAWL FOR MISSING FIELDS ───────────────────────────────────────────
 async function deepCrawlForMissingFields(links, browser, currentDeadline, currentAmount, maxLinks = 5) {
     let deadline = currentDeadline, amount = currentAmount;
     if (deadline && amount) return { deadline, amount };
+
+    log("info", `Deep crawl needed — deadline: ${deadline || "MISSING"}, amount: ${amount || "MISSING"}`);
+
     const prioritizedLinks = links
         .filter(l => !l.endsWith(".jpg") && !l.endsWith(".png") && !l.endsWith(".css"))
         .slice(0, maxLinks);
+
     for (let link of prioritizedLinks) {
         if (deadline && amount) break;
         try {
@@ -1232,19 +1378,156 @@ async function deepCrawlForMissingFields(links, browser, currentDeadline, curren
                 subText = await extractPDFText(link);
             } else {
                 const result = await fetchPageText(link, browser);
-                subText = result.text; subHtml = result.rawHtml;
+                subText = result.text;
+                subHtml = result.rawHtml;
             }
             if (subText.length < 200) continue;
-            if (!deadline) deadline = extractDeadline(subText) || extractHiddenDates(subHtml);
-            if (!amount) amount = extractAmount(subText);
+            if (!deadline) {
+                deadline = extractDeadline(subText) || extractHiddenDates(subHtml);
+                if (deadline) log("time", `Deadline found in sub-page: "${deadline}" — ${link}`);
+            }
+            if (!amount) {
+                amount = extractAmount(subText);
+                if (amount) log("money", `Amount found in sub-page: "${amount}" — ${link}`);
+            }
         } catch (err) {
-            console.log(`  ⚠ Sub-page error: ${link} - ${err.message}`);
+            log("warn", `Sub-page error: ${link} — ${err.message}`);
         }
     }
+
     return { deadline, amount };
 }
 
-// ─── FIX: buildPrompt now requests inferred_focus_areas ──────────────────────
+// ─── ✅ NEW: AGENTIC WEB SEARCH FOR MISSING DEADLINE + AMOUNT ────────────────
+// Uses OpenAI web_search tool to globally find deadline/amount when all local methods fail
+async function agentWebSearchMissingFields(grantName, donorAgency, region, currentDeadline, currentAmount) {
+    const missingDeadline = !currentDeadline;
+    const missingAmount = !currentAmount;
+
+    if (!missingDeadline && !missingAmount) return { deadline: currentDeadline, amount: currentAmount };
+
+    logSeparator("AGENT WEB SEARCH: MISSING FIELDS");
+    log("search", `Grant: "${grantName}" | Donor: "${donorAgency}"`);
+    log("search", `Missing → deadline: ${missingDeadline}, amount: ${missingAmount}`);
+
+    const searchTerms = [grantName, donorAgency, region].filter(Boolean).join(" ");
+    const missingFields = [
+        missingDeadline ? "application deadline / closing date / last date to apply" : null,
+        missingAmount ? "grant amount / funding amount / prize money / budget" : null,
+    ].filter(Boolean).join(" AND ");
+
+    const searchPrompt = `You are a grant research assistant with access to real-time web search.
+
+Search the web globally for the following grant and find the MISSING information:
+
+Grant Name: "${grantName}"
+Donor / Organization: "${donorAgency}"
+Region: "${region || "Global"}"
+Search Terms: "${searchTerms}"
+
+You MUST search the web for: ${missingFields}
+
+Search strategy:
+1. Search: "${grantName} ${donorAgency} deadline 2024 2025"
+2. Search: "${grantName} application deadline closing date"
+3. Search: "${grantName} grant amount funding"
+4. Check official donor website, press releases, grant databases (Candid, GrantWatch, fundsforNGOs, etc.)
+
+Return ONLY this JSON (no markdown, no preamble):
+{
+  "deadline": "found deadline string or null",
+  "amount": "found amount string or null",
+  "deadline_source": "URL where deadline was found or null",
+  "amount_source": "URL where amount was found or null",
+  "confidence": "high|medium|low"
+}`;
+
+    try {
+        await sleep(2000);
+        log("ai", `Calling OpenAI with web search for missing fields...`);
+        const gptResponse = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [{ role: "user", content: searchPrompt }],
+            temperature: 0.1,
+            tools: [{
+                type: "function",
+                function: {
+                    name: "web_search",
+                    description: "Search the web for current grant information",
+                    parameters: {
+                        type: "object",
+                        properties: {
+                            query: { type: "string", description: "Search query" }
+                        },
+                        required: ["query"]
+                    }
+                }
+            }],
+        });
+
+        const result = gptResponse.choices[0].message.content || "";
+        log("ai", `Web search response: ${result.slice(0, 300)}`);
+
+        const clean = result.replace(/```json/gi, "").replace(/```/g, "").trim();
+        const parsed = JSON.parse(clean);
+
+        const foundDeadline = missingDeadline ? (parsed.deadline || null) : currentDeadline;
+        const foundAmount = missingAmount ? (parsed.amount || null) : currentAmount;
+
+        if (foundDeadline) log("time", `Web search found deadline: "${foundDeadline}" (confidence: ${parsed.confidence})`);
+        if (foundAmount) log("money", `Web search found amount: "${foundAmount}" (confidence: ${parsed.confidence})`);
+
+        return { deadline: foundDeadline, amount: foundAmount };
+    } catch (err) {
+        log("warn", `agentWebSearchMissingFields failed: ${err.message}`);
+
+        // ── Fallback: pure text prompt search (no tools) ──────────────────
+        try {
+            log("search", `Fallback: plain text web search prompt...`);
+            const fallbackPrompt = `Search your knowledge and any available information for this grant:
+
+Grant: "${grantName}"
+Organization: "${donorAgency}"
+Region: "${region || "Global"}"
+
+Find:
+${missingDeadline ? "- Application DEADLINE (closing date, last date to apply, due date)" : ""}
+${missingAmount ? "- Grant AMOUNT (funding amount, prize money, maximum award, budget)" : ""}
+
+If you know the grant, provide the information. If unsure, return nulls.
+
+Return ONLY JSON:
+{
+  "deadline": "date string or null",
+  "amount": "amount string or null",
+  "confidence": "high|medium|low"
+}`;
+
+            const fallbackResponse = await openai.chat.completions.create({
+                model: "gpt-4o-mini",
+                messages: [{ role: "user", content: fallbackPrompt }],
+                temperature: 0.1,
+            });
+
+            const fallbackResult = fallbackResponse.choices[0].message.content || "";
+            const fallbackClean = fallbackResult.replace(/```json/gi, "").replace(/```/g, "").trim();
+            const fallbackParsed = JSON.parse(fallbackClean);
+
+            const foundDeadline = missingDeadline ? (fallbackParsed.deadline || null) : currentDeadline;
+            const foundAmount = missingAmount ? (fallbackParsed.amount || null) : currentAmount;
+
+            if (foundDeadline) log("time", `Fallback found deadline: "${foundDeadline}"`);
+            if (foundAmount) log("money", `Fallback found amount: "${foundAmount}"`);
+
+            return { deadline: foundDeadline, amount: foundAmount };
+        } catch (fallbackErr) {
+            log("error", `Fallback web search also failed: ${fallbackErr.message}`);
+            return { deadline: currentDeadline, amount: currentAmount };
+        }
+    }
+}
+
+// ─── BUILD PROMPT ─────────────────────────────────────────────────────────────
 function buildPrompt(text, detectedDeadline, detectedAmount) {
     return `You are an expert grant extraction system for NGOs and startups globally, including India.
 
@@ -1262,25 +1545,39 @@ RULES:
 7. If amount not found use pre-detected amount
 8. status: if deadline is null OR not found, set status to "rolling", else "active"
 9. type: always "grant"
-10. eligibility: Extract EXACTLY 5 short bullet points, max 10 words each. Return as JSON array.
+10. eligibility: Extract EXACTLY 5 short bullet points, max 10 words each. Return as JSON array of strings.
     Example: ["Must be Indian citizen", "Registered startup only", "Less than 5 years old", "Turnover under 1Cr", "Not listed on exchange"]
-11. inferred_focus_areas: Extract 3 to 5 short thematic tags (lowercase) describing what sector or theme this grant targets.
+11. inferred_focus_areas: REQUIRED. Extract 3 to 5 short thematic tags (lowercase strings).
+    MUST be a JSON array of strings — never null.
     Example: ["climate tech", "women founders", "rural india", "seed stage", "edtech"]
-    Return as JSON array of short lowercase strings. If unclear, infer from context.
-12. apply_url: Find "Apply Now", "Apply Here", "Submit", "Register" links. If not found return null.
+12. inferred_countries: REQUIRED. Extract ALL countries or regions eligible to apply.
+    Return as JSON array of country name strings (Title Case). If global/worldwide, return ["Global"].
+    Example: ["India", "Bangladesh", "Nepal", "Sri Lanka"] or ["Global"] or ["United States", "Canada"]
+    This is DIFFERENT from region — region is a broad area, countries are specific nations.
+13. apply_url: Find "Apply Now", "Apply Here", "Submit", "Register" links. If not found return null.
+14. about: Write a detailed, informative description of this grant in 150-200 words. Cover:
+    - What the grant is for (mission/purpose)
+    - Who the funder/donor is and their background
+    - What types of projects or organizations are supported
+    - Geographic focus and sector focus
+    - Why this grant matters for applicants
+    - Any unique features or requirements
+    Make it professional, engaging, and useful for potential applicants.
 
-Return ONLY valid JSON array, no markdown:
+CRITICAL: Return ONLY a valid JSON array. No markdown, no backticks, no preamble.
 [{
   "grant_name": "string",
   "deadline": "string or null",
   "amount": "string or null",
   "region": "string",
+  "inferred_countries": ["Country1", "Country2"],
   "donor_agency": "string",
   "eligibility": ["point 1", "point 2", "point 3", "point 4", "point 5"],
   "inferred_focus_areas": ["tag1", "tag2", "tag3"],
-  "short_description": "string",
+  "short_description": "string (1-2 sentences)",
+  "about": "string (150-200 words detailed description)",
   "apply_url": "string or null",
-  "status": "active" | "rolling",
+  "status": "active",
   "type": "grant"
 }]
 
@@ -1288,30 +1585,77 @@ TEXT:
 ${text}`;
 }
 
+// ─── CALL OPENAI WITH RETRY ───────────────────────────────────────────────────
 async function callOpenAIWithRetry(prompt, retries = 4, delayMs = 15000) {
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
+            log("ai", `OpenAI call attempt ${attempt}/${retries}...`);
             const gptResponse = await openai.chat.completions.create({
                 model: "gpt-4o-mini",
                 messages: [{ role: "user", content: prompt }],
                 temperature: 0.1,
             });
-            return gptResponse.choices[0].message.content;
+            const result = gptResponse.choices[0].message.content;
+            log("ai", `OpenAI responded — ${result.length} chars`);
+            return result;
         } catch (err) {
             const is429 = err?.status === 429 || err?.message?.includes("429");
             const isLast = attempt === retries;
             if (is429 && !isLast) {
                 const retryAfter = err?.headers?.["retry-after"];
                 const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : delayMs * attempt;
-                console.log(`  ⏳ Rate limited. Waiting ${waitMs / 1000}s...`);
+                log("warn", `Rate limited (429). Waiting ${waitMs / 1000}s before retry ${attempt + 1}...`);
                 await sleep(waitMs);
-            } else throw err;
+            } else {
+                log("error", `OpenAI failed (attempt ${attempt}): ${err.message}`);
+                throw err;
+            }
         }
     }
 }
 
+// ─── PARSE GRANTS FROM AI CONTENT ────────────────────────────────────────────
+function parseGrantsFromContent(content, url) {
+    log("ai", `Parsing AI response — ${content.length} chars`);
+
+    let grants;
+    try {
+        grants = JSON.parse(content);
+        log("success", `JSON parsed directly — ${grants.length} grant(s) found`);
+    } catch (e1) {
+        log("warn", `Direct JSON.parse failed: ${e1.message} — trying regex fallback...`);
+        const match = content.match(/\[[\s\S]*\]/);
+        if (match) {
+            try {
+                grants = JSON.parse(match[0]);
+                log("success", `JSON extracted via regex — ${grants.length} grant(s)`);
+            } catch (e2) {
+                log("error", `Regex JSON.parse also failed: ${e2.message}`);
+                return null;
+            }
+        } else {
+            log("error", `No JSON array found in AI response for: ${url}`);
+            return null;
+        }
+    }
+
+    if (!Array.isArray(grants)) {
+        log("error", `Parsed value is not an array (got: ${typeof grants})`);
+        return null;
+    }
+
+    grants.forEach((g, i) => {
+        log("focus", `Grant[${i}] "${g.grant_name?.slice(0, 40)}" → focus: ${JSON.stringify(g.inferred_focus_areas)}`);
+        log("country", `Grant[${i}] "${g.grant_name?.slice(0, 40)}" → countries: ${JSON.stringify(g.inferred_countries)}`);
+    });
+
+    return grants;
+}
+
+// ─── AGENT: PLAN URLs ─────────────────────────────────────────────────────────
 async function agentPlanUrls(urls) {
-    console.log("🧠 Agent: Planning URLs...");
+    logSeparator("AGENT: URL PLANNER");
+    log("memory", `Planning ${urls.length} URLs...`);
     try {
         const prompt = `Analyze these URLs. Rank by likelihood of containing real grant/funding opportunities.
 Return ONLY JSON array:
@@ -1321,28 +1665,38 @@ URLs: ${JSON.stringify(urls.slice(0, 60))}`;
 
         const result = await callOpenAIWithRetry(prompt);
         const ranked = JSON.parse(result.replace(/```json/gi, "").replace(/```/g, "").trim());
-        console.log(`🧠 Planner: ${ranked.filter(u => u.strategy !== "skip").length} queued, ${ranked.filter(u => u.strategy === "skip").length} skipped`);
-        return ranked
-            .filter(u => u.strategy !== "skip")
+        const queued = ranked.filter(u => u.strategy !== "skip");
+        const skipped = ranked.filter(u => u.strategy === "skip");
+        log("success", `Planner done — Queued: ${queued.length}, Skipped: ${skipped.length}`);
+        return queued
             .sort((a, b) => b.priority - a.priority)
-            .map(u => ({ url: u.url, strategy: u.strategy }));
+            .map(u => ({ url: u.url, strategy: u.strategy, priority: u.priority }));
     } catch (err) {
-        console.warn("⚠ Planner failed, original order:", err.message);
-        return urls.map(u => ({ url: u, strategy: "shallow" }));
+        log("warn", `Planner failed (${err.message}) — using original order`);
+        return urls.map(u => ({ url: u, strategy: "shallow", priority: 3 }));
     }
 }
 
-// ─── FIX: agentEvaluateGrant now scores inferred_focus_areas ─────────────────
+// ─── AGENT: EVALUATE GRANT ────────────────────────────────────────────────────
 async function agentEvaluateGrant(grant) {
     try {
-        const prompt = `Rate this grant 0-100 for completeness.
-+25 grant_name meaningful, +25 deadline future date, +20 amount exists, +10 donor known, +10 eligibility 5 points, +5 description, +5 inferred_focus_areas exists
-Return ONLY JSON: {"score": number, "issues": ["..."], "is_valid": true|false}
+        const prompt = `Rate this grant 0-100 for completeness and quality.
++25 grant_name meaningful and specific
++25 deadline is a valid future date
++20 amount exists and is specific
++10 donor_agency is a known/real organization
++10 eligibility has 5 clear points
++5 short_description is informative
++5 inferred_focus_areas has 2+ tags
+Return ONLY JSON: {"score": number, "issues": ["issue1", "issue2"], "is_valid": true|false}
 Grant: ${JSON.stringify(grant)}`;
 
         const result = await callOpenAIWithRetry(prompt);
-        return JSON.parse(result.replace(/```json/gi, "").replace(/```/g, "").trim());
+        const parsed = JSON.parse(result.replace(/```json/gi, "").replace(/```/g, "").trim());
+        log("ai", `Quality score: ${parsed.score}/100 | issues: ${parsed.issues?.join("; ") || "none"}`);
+        return parsed;
     } catch (err) {
+        log("warn", `agentEvaluateGrant failed (${err.message}), using fallback scoring`);
         const score =
             (grant.grant_name ? 25 : 0) +
             (grant.deadline ? 25 : 0) +
@@ -1350,29 +1704,31 @@ Grant: ${JSON.stringify(grant)}`;
             (grant.donor_agency ? 10 : 0) +
             (grant.eligibility?.length > 0 ? 10 : 0) +
             (grant.short_description ? 5 : 0) +
-            (grant.inferred_focus_areas?.length > 0 ? 5 : 0); // FIX: added
-        return { score, issues: [], is_valid: score >= 40 };
+            (grant.inferred_focus_areas?.length > 0 ? 5 : 0);
+        return { score, issues: ["Scored by fallback logic"], is_valid: score >= 40 };
     }
 }
 
+// ─── AGENT: LOAD MEMORY ───────────────────────────────────────────────────────
 async function agentLoadMemory() {
     try {
         const memory = await GrantMemoryModel.find({});
         const skipUrls = new Set(memory.filter(m => m.skip).map(m => m.url));
-        console.log(`🧠 Memory: ${memory.length} tracked, ${skipUrls.size} will skip`);
+        log("memory", `Loaded ${memory.length} memory records — ${skipUrls.size} flagged to skip`);
         return skipUrls;
     } catch (err) {
-        console.warn("⚠ Memory load failed:", err.message);
+        log("warn", `Memory load failed: ${err.message}`);
         return new Set();
     }
 }
 
-// ─── FIX: agentUpdateMemory defined once with 3-fail logic ───────────────────
+// ─── AGENT: UPDATE MEMORY ─────────────────────────────────────────────────────
 async function agentUpdateMemory(url, grantsFound, avgScore) {
     try {
         const existing = await GrantMemoryModel.findOne({ url });
         const currentFailCount = existing?.fail_count || 0;
         const newFailCount = grantsFound === 0 ? currentFailCount + 1 : 0;
+        const willSkip = newFailCount >= 3;
 
         await GrantMemoryModel.findOneAndUpdate(
             { url },
@@ -1383,17 +1739,67 @@ async function agentUpdateMemory(url, grantsFound, avgScore) {
                     grants_found: grantsFound,
                     avg_score: avgScore,
                     fail_count: newFailCount,
-                    skip: newFailCount >= 3,
-                    skip_reason: newFailCount >= 3 ? "Failed 3 times consecutively" : null,
+                    skip: willSkip,
+                    skip_reason: willSkip ? "Failed 3 times consecutively" : null,
                 },
             },
             { upsert: true }
         );
+
+        if (willSkip) {
+            log("memory", `URL flagged to SKIP (3 consecutive failures): ${url}`);
+        } else {
+            log("memory", `Memory updated — grants: ${grantsFound}, failCount: ${newFailCount}, avgScore: ${avgScore}`);
+        }
     } catch (err) {
-        console.warn(`⚠ Memory update failed ${url}:`, err.message);
+        log("warn", `Memory update failed for ${url}: ${err.message}`);
     }
 }
 
+// ─── SAVE GRANTS TO DB ────────────────────────────────────────────────────────
+async function saveGrantsToDB(finalResults) {
+    if (finalResults.length === 0) {
+        log("save", "No grants to save — skipping DB write");
+        return;
+    }
+
+    logSeparator("DB SAVE");
+    log("save", `Saving ${finalResults.length} grants to MongoDB...`);
+
+    finalResults.forEach((g, i) => {
+        log("db", `[${i + 1}/${finalResults.length}] "${g.title}"`);
+        log("db", `     status               : ${g.status}`);
+        log("db", `     donor                : ${g.donor}`);
+        log("db", `     deadline             : ${g.deadline || "null"}`);
+        log("db", `     amount               : ${g.financials?.raw || "null"}`);
+        log("db", `     inferred_focus_areas : [${(g.inferred_focus_areas || []).join(", ")}]`);
+        log("db", `     inferred_countries   : [${(g.inferred_countries || []).join(", ")}]`);
+        log("db", `     eligibility count    : ${(g.eligibility || []).length}`);
+        log("db", `     about length         : ${(g.about || "").length} chars`);
+        log("db", `     applyUrl             : ${g.applyUrl}`);
+    });
+
+    try {
+        const result = await Grant.bulkWrite(
+            finalResults.map(g => ({
+                updateOne: {
+                    filter: { title: g.title },
+                    update: { $set: g },
+                    upsert: true,
+                }
+            }))
+        );
+        log("success", `DB bulkWrite complete!`);
+        log("db", `  Matched  : ${result.matchedCount}`);
+        log("db", `  Modified : ${result.modifiedCount}`);
+        log("db", `  Upserted : ${result.upsertedCount}`);
+    } catch (err) {
+        log("error", `DB bulkWrite FAILED: ${err.message}`);
+        throw err;
+    }
+}
+
+// ─── MAIN CONTROLLER ─────────────────────────────────────────────────────────
 exports.createGrantScrap = async (req, res) => {
 
     const finalResults = [];
@@ -1415,12 +1821,20 @@ exports.createGrantScrap = async (req, res) => {
         vagueNameDiscarded: 0,
         lowQualityDiscarded: 0,
         duplicateSkipped: 0,
+        typeRejected: 0,
+        webSearchUsed: 0,        // ✅ NEW: track agentic web searches
+        webSearchDeadlineFound: 0,
+        webSearchAmountFound: 0,
         saved: 0,
     };
 
-    try {
+    const startTime = Date.now();
 
-        // STEP 0: URLs fetch
+    try {
+        logSeparator("GRANT SCRAPER STARTED");
+
+        // ── STEP 0: Fetch URLs ──────────────────────────────────────────────
+        logSeparator("STEP 0: FETCH URLS");
         try {
             const apiRes = await axios.get("http://localhost:7777/api/admin/getUrlLink", { timeout: 10000 });
             const dynamicUrls = apiRes.data.flatMap(item =>
@@ -1428,25 +1842,31 @@ exports.createGrantScrap = async (req, res) => {
             );
             urls = [...new Set(dynamicUrls)];
             agentStats.totalUrls = urls.length;
-            console.log(`🌐 Total URLs: ${urls.length}`);
+            log("success", `Fetched ${urls.length} unique URLs`);
         } catch (err) {
-            console.error("❌ URL fetch failed:", err.message);
+            log("error", `URL fetch failed: ${err.message}`);
             return res.status(500).json({ success: false, message: "URL fetch failed" });
         }
 
-        if (urls.length === 0) return res.status(400).json({ success: false, message: "No URLs found" });
+        if (urls.length === 0) {
+            log("warn", "No URLs found — aborting");
+            return res.status(400).json({ success: false, message: "No URLs found" });
+        }
 
-        // AGENT: Memory
+        // ── STEP 1: Memory filter ───────────────────────────────────────────
+        logSeparator("STEP 1: MEMORY FILTER");
         const skipUrlsFromMemory = await agentLoadMemory();
         const urlsToProcess = urls.filter(u => !skipUrlsFromMemory.has(u));
         agentStats.skippedByMemory = urls.length - urlsToProcess.length;
-        console.log(`🧠 Memory skip: ${agentStats.skippedByMemory}`);
+        log("info", `After memory filter: ${urlsToProcess.length} remaining (${agentStats.skippedByMemory} skipped)`);
 
-        // AGENT: Planner
+        // ── STEP 2: Planner ─────────────────────────────────────────────────
         const plannedUrls = await agentPlanUrls(urlsToProcess);
         agentStats.skippedByPlanner = urlsToProcess.length - plannedUrls.length;
-        console.log(`🧠 Queued: ${plannedUrls.length}`);
+        log("info", `After planner: ${plannedUrls.length} queued`);
 
+        // ── STEP 3: Launch Browser ──────────────────────────────────────────
+        logSeparator("STEP 3: BROWSER LAUNCH");
         browser = await puppeteer.launch({
             headless: "new",
             args: [
@@ -1458,25 +1878,39 @@ exports.createGrantScrap = async (req, res) => {
                 "--disable-blink-features=AutomationControlled",
             ]
         });
+        log("success", "Puppeteer browser launched");
 
-        // MAIN LOOP
-        for (let { url, strategy } of plannedUrls) {
+        // ── STEP 4: Main scrape loop ────────────────────────────────────────
+        logSeparator("STEP 4: MAIN SCRAPE LOOP");
+
+        for (let idx = 0; idx < plannedUrls.length; idx++) {
+            const { url, strategy, priority } = plannedUrls[idx];
+
             try {
                 const domain = new URL(url).hostname;
-                if (SKIP_DOMAINS.some(d => domain.includes(d))) continue;
+                if (SKIP_DOMAINS.some(d => domain.includes(d))) {
+                    log("skip", `Domain blocked: ${domain}`);
+                    continue;
+                }
 
-                console.log(`\n🌐 [${strategy.toUpperCase()}] ${url}`);
+                logSeparator(`[${idx + 1}/${plannedUrls.length}] ${strategy.toUpperCase()} | P${priority}`);
+                log("url", url);
 
                 const { text: rawText, rawHtml, links } = await fetchPageText(url, browser);
 
                 if (!rawText || rawText.length < 300) {
+                    log("warn", `Page text too short (${rawText?.length || 0} chars) — skipping`);
                     await agentUpdateMemory(url, 0, 0);
                     continue;
                 }
 
                 const mainText = cleanText(rawText);
+                log("info", `Cleaned text: ${mainText.length} chars`);
+
                 let detectedDeadline = extractDeadline(mainText) || extractHiddenDates(rawHtml);
                 let detectedAmount = extractAmount(mainText);
+                log("time", `Local deadline: ${detectedDeadline || "NOT FOUND"}`);
+                log("money", `Local amount  : ${detectedAmount || "NOT FOUND"}`);
 
                 if (!detectedDeadline || !detectedAmount) {
                     const deepResult = await deepCrawlForMissingFields(links, browser, detectedDeadline, detectedAmount);
@@ -1487,55 +1921,93 @@ exports.createGrantScrap = async (req, res) => {
                 const pageApplyUrl = extractApplyUrl(links, rawHtml, url);
 
                 await sleep(OPENAI_DELAY_MS);
-
                 let content;
                 try {
                     content = await callOpenAIWithRetry(buildPrompt(mainText, detectedDeadline, detectedAmount));
                 } catch (err) {
-                    console.error(`❌ OpenAI failed: ${url}`);
+                    log("error", `OpenAI call failed for ${url}: ${err.message}`);
                     await agentUpdateMemory(url, 0, 0);
                     continue;
                 }
 
                 content = content.replace(/```json/gi, "").replace(/```/g, "").trim();
 
-                let grants;
-                try {
-                    grants = JSON.parse(content);
-                } catch {
-                    const match = content.match(/\[[\s\S]*\]/);
-                    if (match) { try { grants = JSON.parse(match[0]); } catch { continue; } }
-                    else continue;
+                const grants = parseGrantsFromContent(content, url);
+                if (!grants) {
+                    await agentUpdateMemory(url, 0, 0);
+                    continue;
                 }
-
-                if (!Array.isArray(grants)) continue;
 
                 const now = new Date();
                 let urlScores = [];
                 let savedFromThisUrl = 0;
 
                 for (const g of grants) {
+                    logSeparator(`GRANT: ${(g.grant_name || "Unnamed").slice(0, 50)}`);
 
-                    if (!isGrantAllowed(g)) continue;
+                    if (!isGrantAllowed(g)) {
+                        agentStats.typeRejected++;
+                        continue;
+                    }
 
-                    const resolvedDeadline = g.deadline || detectedDeadline;
-                    const resolvedAmount = g.amount || detectedAmount || null;
+                    let resolvedDeadline = g.deadline || detectedDeadline;
+                    let resolvedAmount = g.amount || detectedAmount || null;
+
+                    // ── ✅ AGENTIC WEB SEARCH for still-missing deadline/amount ──────
+                    if (!resolvedDeadline || !resolvedAmount) {
+                        log("search", `Still missing fields — triggering global web search...`);
+                        agentStats.webSearchUsed++;
+
+                        const webResult = await agentWebSearchMissingFields(
+                            g.grant_name,
+                            g.donor_agency,
+                            g.region,
+                            resolvedDeadline,
+                            resolvedAmount
+                        );
+
+                        if (!resolvedDeadline && webResult.deadline) {
+                            resolvedDeadline = webResult.deadline;
+                            agentStats.webSearchDeadlineFound++;
+                            log("time", `✅ Web search deadline: "${resolvedDeadline}"`);
+                        }
+                        if (!resolvedAmount && webResult.amount) {
+                            resolvedAmount = webResult.amount;
+                            agentStats.webSearchAmountFound++;
+                            log("money", `✅ Web search amount: "${resolvedAmount}"`);
+                        }
+                    }
+
                     const parsedDeadline = resolvedDeadline ? new Date(resolvedDeadline) : null;
                     const isValidDate = parsedDeadline && !isNaN(parsedDeadline);
                     const isOpen = isValidDate ? parsedDeadline > now : true;
-                    const daysLeft = isValidDate ? Math.ceil((parsedDeadline - now) / (1000 * 60 * 60 * 24)) : null;
+                    const daysLeft = isValidDate
+                        ? Math.ceil((parsedDeadline - now) / (1000 * 60 * 60 * 24))
+                        : null;
 
                     const status = isValidDate
                         ? (parsedDeadline > now ? "active" : "expired")
-                        : (g.status === "rolling" ? "rolling" : "rolling");
+                        : "rolling";
 
                     const eligibilityPoints = parseEligibility(g.eligibility);
+                    const inferredFocusAreas = parseFocusAreas(g.inferred_focus_areas, g.grant_name);
 
-                    // ─── FIX: parse inferred_focus_areas from AI response ─────────
-                    const inferredFocusAreas = parseFocusAreas(g.inferred_focus_areas);
+                    // ✅ Parse countries
+                    const inferredCountries = parseCountries(g.inferred_countries, g.grant_name);
 
                     const applyUrl = g.apply_url || pageApplyUrl || url;
 
+                    // ✅ About section (enhanced ~200 words)
+                    const aboutText = g.about || g.short_description || null;
+
+                    log("info", `Deadline    : ${resolvedDeadline || "null"} → status: ${status}, daysLeft: ${daysLeft ?? "N/A"}`);
+                    log("info", `Amount      : ${resolvedAmount || "null"}`);
+                    log("info", `Donor       : ${g.donor_agency || "null"}`);
+                    log("country", `Countries   : [${inferredCountries.join(", ")}]`);
+                    log("focus", `Focus areas : [${inferredFocusAreas.join(", ")}]`);
+                    log("info", `About length: ${(aboutText || "").length} chars`);
+
+                    // ── BUILD GRANT OBJECT ───────────────────────────────────────────
                     const grant = {
                         raw: {
                             grant_name: g.grant_name,
@@ -1544,18 +2016,22 @@ exports.createGrantScrap = async (req, res) => {
                             region: g.region || null,
                             donor_agency: g.donor_agency || null,
                             eligibility: eligibilityPoints,
-                            inferred_focus_areas: inferredFocusAreas,   // FIX: added to raw
+                            inferred_focus_areas: inferredFocusAreas,
+                            inferred_countries: inferredCountries,        // ✅ saved in raw
                             short_description: g.short_description || null,
+                            about: aboutText,                              // ✅ enhanced about
                             source_url: url,
                             apply_url: applyUrl,
                         },
                         title: g.grant_name,
                         donor: g.donor_agency || "Unknown",
                         category: "grant",
-                        inferred_focus_areas: inferredFocusAreas,        // FIX: added top-level for filtering/search
+                        inferred_focus_areas: inferredFocusAreas,
+                        inferred_countries: inferredCountries,             // ✅ top-level countries
                         geography: {
                             region: g.region || null,
                             region_normalized: g.region ? g.region.toLowerCase().trim() : null,
+                            countries: inferredCountries,                  // ✅ countries in geography
                         },
                         financials: {
                             raw: resolvedAmount,
@@ -1567,121 +2043,150 @@ exports.createGrantScrap = async (req, res) => {
                         isOpen,
                         eligibility: eligibilityPoints,
                         shortDescription: g.short_description || null,
+                        about: aboutText,                                  // ✅ top-level about
                         applyUrl,
-                        // FIX: inferred_focus_areas included in searchText for full-text search
+                        // ✅ AI subdocument fields (for modal)
+                        ai: {
+                            inferred_focus_areas: inferredFocusAreas,
+                            inferred_focus_country: inferredCountries,     // ✅ matches model schema
+                            summary: g.short_description || null,
+                            long_description: aboutText,                   // ✅ about as long_description
+                        },
                         searchText: [
                             g.grant_name,
                             g.donor_agency,
                             g.region,
+                            inferredCountries.join(" "),
                             eligibilityPoints.join(" "),
                             inferredFocusAreas.join(" "),
                         ].filter(Boolean).join(" ").toLowerCase(),
                     };
 
-                    // 1. Expired
+                    // ── FILTER CHECKS ─────────────────────────────────────────────
+
                     if (!grant.isOpen) {
-                        console.log(`  ⏰ Expired: ${grant.title}`);
-                        agentStats.expiredDiscarded++; continue;
+                        log("skip", `EXPIRED: ${grant.title}`);
+                        agentStats.expiredDiscarded++;
+                        continue;
                     }
 
-                    // 2. Deadline too close (rolling safe)
                     if (grant.status !== "rolling" && grant.deadline && daysLeft < MIN_DAYS_LEFT) {
-                        console.log(`  ⏳ Only ${daysLeft} days left: ${grant.title}`);
-                        agentStats.lowDeadlineDiscarded++; continue;
+                        log("skip", `TOO CLOSE (${daysLeft} days left): ${grant.title}`);
+                        agentStats.lowDeadlineDiscarded++;
+                        continue;
                     }
 
-                    // 3. Expired (double-check)
                     if (grant.status === "expired") {
-                        console.log(`  ⏰ Expired (condition 3): ${grant.title}`);
-                        agentStats.nullDeadlineDiscarded++; continue;
+                        log("skip", `EXPIRED (double-check): ${grant.title}`);
+                        agentStats.nullDeadlineDiscarded++;
+                        continue;
                     }
 
-                    // 4. No amount — log but keep
                     if (!grant.raw.amount) {
-                        console.log(`  ⚠ No amount (keeping): ${grant.title}`);
+                        log("warn", `No amount found (keeping anyway): ${grant.title}`);
                     }
 
-                    // 5. Unknown donor
-                    // BAAD MEIN
                     const UNKNOWN_DONOR_VALUES = ["unknown", "not specified", "n/a", "na",
                         "unspecified", "not available", "tbd", "none", ""];
-
                     if (!grant.donor || UNKNOWN_DONOR_VALUES.includes(grant.donor.toLowerCase().trim())) {
-                        console.log(`  ❌ Unknown donor: ${grant.title}`);
-                        agentStats.unknownDonorDiscarded++; continue;
+                        log("skip", `UNKNOWN DONOR: ${grant.title}`);
+                        agentStats.unknownDonorDiscarded++;
+                        continue;
                     }
 
-                    // 6. Vague name
                     if (grant.title.trim().split(" ").length < 3) {
-                        console.log(`  ❌ Vague name: ${grant.title}`);
-                        agentStats.vagueNameDiscarded++; continue;
+                        log("skip", `VAGUE NAME (< 3 words): "${grant.title}"`);
+                        agentStats.vagueNameDiscarded++;
+                        continue;
                     }
 
-                    // 7. AI quality score
                     const evaluation = await agentEvaluateGrant(grant.raw);
                     urlScores.push(evaluation.score);
                     if (evaluation.score < MIN_QUALITY_SCORE) {
-                        console.log(`  ❌ Low score (${evaluation.score}/100): ${grant.title}`);
-                        agentStats.lowQualityDiscarded++; continue;
+                        log("skip", `LOW QUALITY (${evaluation.score}/100): ${grant.title}`);
+                        agentStats.lowQualityDiscarded++;
+                        continue;
                     }
 
-                    // 8. Global duplicate
                     const key = grant.title.toLowerCase().trim();
                     if (globalUniqueMap.has(key)) {
-                        console.log(`  🔁 Duplicate: ${grant.title}`);
-                        agentStats.duplicateSkipped++; continue;
+                        log("skip", `DUPLICATE: ${grant.title}`);
+                        agentStats.duplicateSkipped++;
+                        continue;
                     }
 
-                    // ALL PASS — SAVE
-                    console.log(`  ✅ SAVED (${evaluation.score}/100) | ${daysLeft || "rolling"} days | focus: [${inferredFocusAreas.join(", ")}] | ${applyUrl}`);
+                    log("success",
+                        `SAVED ✅ | Score: ${evaluation.score}/100 | Days: ${daysLeft ?? "rolling"} | ` +
+                        `Countries: [${inferredCountries.join(", ")}] | Focus: [${inferredFocusAreas.join(", ")}]`
+                    );
                     globalUniqueMap.set(key, grant);
                     finalResults.push(grant);
                     savedFromThisUrl++;
                 }
 
                 const avgScore = urlScores.length > 0
-                    ? Math.round(urlScores.reduce((a, b) => a + b, 0) / urlScores.length) : 0;
+                    ? Math.round(urlScores.reduce((a, b) => a + b, 0) / urlScores.length)
+                    : 0;
 
                 await agentUpdateMemory(url, savedFromThisUrl, avgScore);
-                console.log(`📊 ${savedFromThisUrl} saved from ${url}`);
+                log("save", `${savedFromThisUrl} grant(s) saved from this URL (avg score: ${avgScore})`);
 
             } catch (err) {
-                console.error(`❌ URL error ${url}:`, err.message);
+                log("error", `URL processing failed: ${url} — ${err.message}`);
+                console.error(err.stack);
                 await agentUpdateMemory(url, 0, 0);
             }
         }
 
-        // STEP 9: Save DB
-        if (finalResults.length > 0) {
-            await Grant.bulkWrite(
-                finalResults.map(g => ({
-                    updateOne: {
-                        filter: { title: g.title },
-                        update: { $set: g },
-                        upsert: true,
-                    }
-                }))
-            );
-        }
+        // ── STEP 5: Save to DB ──────────────────────────────────────────────
+        await saveGrantsToDB(finalResults);
 
         agentStats.saved = finalResults.length;
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
-        console.log("\n========== AGENT REPORT ==========");
-        Object.entries(agentStats).forEach(([k, v]) => console.log(`${k.padEnd(25)}: ${v}`));
-        console.log("===================================\n");
+        logSeparator("AGENT FINAL REPORT");
+        const reportRows = [
+            ["Total URLs fetched",        agentStats.totalUrls],
+            ["Skipped by memory",         agentStats.skippedByMemory],
+            ["Skipped by planner",        agentStats.skippedByPlanner],
+            ["Type rejected",             agentStats.typeRejected],
+            ["Expired discarded",         agentStats.expiredDiscarded],
+            ["Deadline too close",        agentStats.lowDeadlineDiscarded],
+            ["Null deadline discard",     agentStats.nullDeadlineDiscarded],
+            ["Unknown donor",             agentStats.unknownDonorDiscarded],
+            ["Vague name",                agentStats.vagueNameDiscarded],
+            ["Low quality score",         agentStats.lowQualityDiscarded],
+            ["Duplicates skipped",        agentStats.duplicateSkipped],
+            ["🔍 Web searches triggered", agentStats.webSearchUsed],
+            ["🔍 Deadlines via web",      agentStats.webSearchDeadlineFound],
+            ["🔍 Amounts via web",        agentStats.webSearchAmountFound],
+            ["✅ SAVED TO DB",            agentStats.saved],
+            ["⏱️  Total time (s)",        elapsed],
+        ];
+        reportRows.forEach(([k, v]) => console.log(`  ${k.padEnd(30)}: ${v}`));
+        logSeparator();
 
-        return res.json({ success: true, total: finalResults.length, agentStats, data: finalResults });
+        return res.json({
+            success: true,
+            total: finalResults.length,
+            elapsed_seconds: parseFloat(elapsed),
+            agentStats,
+            data: finalResults,
+        });
 
     } catch (err) {
-        console.error("❌ Fatal Error:", err.message);
+        log("error", `FATAL ERROR: ${err.message}`);
+        console.error(err.stack);
         return res.status(500).json({ success: false, message: err.message });
     } finally {
-        if (browser) await browser.close();
+        if (browser) {
+            await browser.close();
+            log("info", "Browser closed");
+        }
     }
 };
 
-
-//////////////////////////////////////////////////////////////////////////////////////////
+// ─── OTHER EXPORTS (unchanged) ────────────────────────────────────────────────
 exports.searchGrants = async (req, res) => {
     try {
         const grants = await Grant.find({ $text: { $search: req.query.q } });
@@ -1786,35 +2291,84 @@ exports.createGrantsDetail = async (req, res) => {
         const result = await processGrant(grant);
         if (!result) return res.status(500).json({ success: false, message: "AI processing failed" });
 
-        result.country = Array.isArray(result.country) && result.country.length > 0 ? result.country.filter(Boolean) : [grant.region || "Unknown"];
-        result.focus_area = Array.isArray(result.focus_area) && result.focus_area.length > 0 ? result.focus_area.filter(Boolean) : ["Community Development"];
+        result.country = Array.isArray(result.country) && result.country.length > 0
+            ? result.country.filter(Boolean)
+            : [grant.region || "Unknown"];
+        result.focus_area = Array.isArray(result.focus_area) && result.focus_area.length > 0
+            ? result.focus_area.filter(Boolean)
+            : ["Community Development"];
         result.region_normalized = (result.region_normalized || grant.region || "").toLowerCase().trim();
         result.donor_agency = result.donor_agency || grant.donor_agency || "Unknown";
         result.donor_agency_normalized = result.donor_agency_normalized || result.donor_agency;
         result.amount = result.amount?.trim() || grant.amount || "Not specified";
 
+        // ✅ Parse countries from processGrant result
+        const inferredCountries = parseCountries(result.country || grant.inferred_countries, grant.grant_name);
+
+        // ✅ Generate enhanced about (~200 words) if missing
+        let aboutText = result.long_description || result.about || null;
+        if (!aboutText || aboutText.length < 100) {
+            try {
+                const aboutPrompt = `Write a detailed, informative 150-200 word description for this grant opportunity. Cover: what the grant funds, who the funder is, what types of projects/organizations are eligible, geographic and sector focus, and why this matters for applicants. Make it professional and useful.
+
+Grant Name: ${grant.grant_name}
+Donor: ${result.donor_agency}
+Region: ${grant.region}
+Countries: ${inferredCountries.join(", ") || "Global"}
+Amount: ${result.amount}
+Focus Areas: ${result.focus_area?.join(", ")}
+Short Description: ${result.short_description || ""}
+
+Return ONLY the about text, no labels or JSON.`;
+
+                await sleep(1500);
+                const aboutResponse = await openai.chat.completions.create({
+                    model: "gpt-4o-mini",
+                    messages: [{ role: "user", content: aboutPrompt }],
+                    temperature: 0.3,
+                });
+                aboutText = aboutResponse.choices[0].message.content?.trim() || null;
+                log("ai", `Generated about text: ${(aboutText || "").length} chars`);
+            } catch (aboutErr) {
+                log("warn", `About generation failed: ${aboutErr.message}`);
+            }
+        }
+
         let updatedDoc = null;
         if (grantId) {
             updatedDoc = await Grant.findByIdAndUpdate(grantId, {
                 $set: {
-                    "ai.inferred_focus_areas": result.focus_area,
-                    "ai.inferred_focus_country": result.country,
-                    "ai.inferred_region": result.region_normalized,
-                    "ai.inferred_donor": result.donor_agency_normalized,
-                    "ai.summary": result.short_description || "",
-                    "ai.long_description": result.long_description || "",
+                    // ✅ AI subdoc — all fields
+                    "ai.inferred_focus_areas":   result.focus_area,
+                    "ai.inferred_focus_country": inferredCountries,      // ✅ countries array
+                    "ai.inferred_region":        result.region_normalized,
+                    "ai.inferred_donor":         result.donor_agency_normalized,
+                    "ai.summary":                result.short_description || "",
+                    "ai.long_description":       aboutText || result.short_description || "",
+
+                    // ✅ Geography
                     "geography.region_normalized": result.region_normalized,
-                    "geography.country": result.country,
-                    "financials.raw": result.amount,
-                    donor: result.donor_agency,
-                    shortDescription: result.short_description || "",
-                    hasAiDetail: true,
+                    "geography.country":           result.country,
+                    "geography.countries":         inferredCountries,    // ✅ specific countries
+
+                    // ✅ Top-level fields
+                    "financials.raw":             result.amount,
+                    donor:                        result.donor_agency,
+                    shortDescription:             result.short_description || "",
+                    about:                        aboutText || "",       // ✅ enhanced about
+                    inferred_countries:           inferredCountries,     // ✅ top-level
+                    hasAiDetail:                  true,
                 }
             }, { new: true, runValidators: false }).lean();
+
             if (!updatedDoc) return res.status(404).json({ success: false, message: `Grant not found: ${grantId}` });
         }
 
-        return res.status(200).json({ success: true, data: result, updatedDoc: updatedDoc || null });
+        return res.status(200).json({
+            success: true,
+            data: { ...result, inferred_countries: inferredCountries, about: aboutText },
+            updatedDoc: updatedDoc || null
+        });
     } catch (error) {
         console.error("❌ createGrantsDetail error:", error);
         return res.status(500).json({ success: false, message: error.message || "Internal Server Error" });

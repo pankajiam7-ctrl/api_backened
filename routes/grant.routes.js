@@ -51,7 +51,7 @@ router.delete("/:id", deleteGrant);
 router.patch("/:id", updateSingleField);
 
 router.post('/save-grants', saveGrantJSON); // ✅ move above /:titleUrl too
-router.get("www/:id", getGrantById);
+router.get("/details/:id", getGrantById);
 router.get('/:titleUrl', getGrantsByTitleURL); // ⚠️ this catches everything above it
 
 
