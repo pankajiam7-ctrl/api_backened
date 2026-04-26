@@ -7,7 +7,8 @@ const userRoutes = require("./routes/user.routes");
 const grantRoutes = require("./routes/grant.routes");
 const proposalRoutes = require("./routes/proposal.routes");
 const adminRoutes = require("./routes/admin.routes");
-const paymentRoutes =  require("./routes/payment.routes")
+const paymentRoutes =  require("./routes/payment.routes");
+const { startCronJobs } = require("./job/email.cron");
 
 
 
@@ -38,6 +39,8 @@ app.use("/api/grants", grantRoutes);
 app.use("/api/proposals", proposalRoutes);
 app.use("/api/admin", adminRoutes);
 app.use('/api/payment',paymentRoutes);
+
+startCronJobs()
 
 
 module.exports = app;

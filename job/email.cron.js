@@ -93,7 +93,7 @@ async function sendGrantEmails(label = "Cron") {
 function startCronJobs() {
 
   // ← TEST: har minute trigger, test hone ke baad comment kar do
-   cron.schedule("* * * * *", () => sendGrantEmails("TEST-EVERY-MINUTE"));
+   //cron.schedule("* * * * *", () => sendGrantEmails("TEST-EVERY-MINUTE"));
 
   // // Daily 8AM IST
   // cron.schedule("0 8 * * *", () => sendGrantEmails("Daily-8AM"),
