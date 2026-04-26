@@ -1,6 +1,6 @@
 const express = require("express");
 const cors = require("cors"); // 👈 add this
-const { startCronJobs } = require("./job/emailcronJob.js");
+const { startCronJobs } = require("./job/emailCronJob.js");
 
 const authRoutes = require("./routes/auth.routes");
 const userRoutes = require("./routes/user.routes");
