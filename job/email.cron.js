@@ -14,7 +14,7 @@ async function processUser(user, grants, label) {
     try {
         await transporter.sendMail({
             from: `"${process.env.SENDER_NAME || "GrantHub NGO"}" <${process.env.MAIL_USER}>`,
-            to: "pankaj16289@gmail.com",// process.env.TEST_EMAIL || user.user_email, // ← TEST_EMAIL set karo .env mein test k liye
+            to:      user.user_email, // ← TEST_EMAIL set karo .env mein test k liye
             subject: "🌍 New Grant Opportunities – GrantHub NGO",
             html: buildEmailHtml(user.user_email, grants),
         });
