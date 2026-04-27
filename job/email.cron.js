@@ -92,7 +92,7 @@ async function sendGrantEmails(label = "Cron") {
 // ── Cron schedules ─────────────────────────────────────────────────────────────
 function startCronJobs() {
 
-    cron.schedule("30 11 * * 1", () => sendGrantEmails("Weekly-Monday"),
+    cron.schedule("35 11 * * 1", () => sendGrantEmails("Weekly-Monday"),
         { timezone: "Asia/Kolkata" });
 
     console.log("✅ Cron jobs registered: Monday 11:30AM IST");
