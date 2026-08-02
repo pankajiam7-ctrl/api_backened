@@ -8,6 +8,12 @@ const grantRoutes = require("./routes/grant.routes");
 const proposalRoutes = require("./routes/proposal.routes");
 const adminRoutes = require("./routes/admin.routes");
 const paymentRoutes =  require("./routes/payment.routes");
+const coverLoiRoutes =  require("./routes/coverLoiRoutes");
+const logFrameRoutes =  require("./routes/logFrameRoutes");
+const budgetRoutes =  require("./routes/budgetRoutes");
+const proposalRequestRoutes = require("./routes/proposalRequest.routes");
+
+
 const { startCronJobs } = require("./job/email.cron");
 
 
@@ -39,6 +45,12 @@ app.use("/api/grants", grantRoutes);
 app.use("/api/proposals", proposalRoutes);
 app.use("/api/admin", adminRoutes);
 app.use('/api/payment',paymentRoutes);
+app.use('/api/coverLoi',coverLoiRoutes );
+app.use('/api/budget',budgetRoutes );
+app.use('/api/logFrame',logFrameRoutes );
+app.use("/api/proposal", proposalRequestRoutes);
+
+
 
 startCronJobs()
 

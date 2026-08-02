@@ -41,11 +41,12 @@ exports.getUsers = async (req, res) => {
             query.emailVerified = false;
         }
 
-        const users = await User.find(query)
-            .select("name email subscription isActive emailVerified createdAt")
-            .skip((page - 1) * limit)
-            .limit(Number(limit))
-            .sort({ createdAt: -1 });
+        // const users = await User.find(query)
+        //     .select("name email subscription isActive emailVerified createdAt")
+        //     .skip((page - 1) * limit)
+        //     .limit(Number(limit))
+        //     .sort({ createdAt: -1 });
+        const users =  await User.find(query).select({})
 
         const total = await User.countDocuments(query);
 
