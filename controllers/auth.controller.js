@@ -140,6 +140,7 @@ const transporter = nodemailer.createTransport({
 // POST /api/auth/send-otp
 // Body: { email, name }
 // ─────────────────────────────────────────────────────────────────────────────
+
 exports.sendOtp = async (req, res) => {
   try {
     const { email, name } = req.body
@@ -159,59 +160,74 @@ exports.sendOtp = async (req, res) => {
 
     console.log(`OTP for ${email}: ${otp}`) // Remove in production
 
-    // Send Email
-    await transporter.sendMail({
-      from:    `"GrantHub" <${process.env.MAIL_USER}>`,
-      to:      email,
-      subject: 'Your GrantHub Verification Code',
-      html: `
-        <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;background:#f9fafb;border-radius:12px;">
-          
-          <div style="text-align:center;margin-bottom:24px;">
-            <div style="background:#0f2d57;color:#fff;font-size:24px;font-weight:900;width:52px;height:52px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;">G</div>
-            <h2 style="color:#0f2d57;margin:12px 0 4px;">GrantHub</h2>
-            <p style="color:#6b7280;margin:0;font-size:14px;">Email Verification</p>
-          </div>
-
-          <p style="color:#374151;font-size:15px;">Hi <strong>${name || 'there'}</strong>,</p>
-          <p style="color:#374151;font-size:15px;">
-            Use the verification code below to complete your registration. 
-            This code expires in <strong>10 minutes</strong>.
-          </p>
-
-          <div style="text-align:center;margin:32px 0;">
-            <div style="display:inline-block;background:#0f2d57;color:#fff;font-size:36px;font-weight:900;letter-spacing:12px;padding:18px 36px;border-radius:12px;">
-              ${otp}
+    // Send Email via Brevo HTTP API (no SMTP, so no port-block issue on Render free tier)
+    await axios.post(
+      'https://api.brevo.com/v3/smtp/email',
+      {
+        sender: {
+          name:  process.env.SENDER_NAME || 'GrantHub',
+          email: process.env.BREVO_SENDER_EMAIL,
+        },
+        to: [{ email, name: name || 'there' }],
+        subject: 'Your GrantHub Verification Code',
+        htmlContent: `
+          <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:32px;background:#f9fafb;border-radius:12px;">
+            
+            <div style="text-align:center;margin-bottom:24px;">
+              <div style="background:#0f2d57;color:#fff;font-size:24px;font-weight:900;width:52px;height:52px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;">G</div>
+              <h2 style="color:#0f2d57;margin:12px 0 4px;">GrantHub</h2>
+              <p style="color:#6b7280;margin:0;font-size:14px;">Email Verification</p>
             </div>
-          </div>
 
-          <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:12px 16px;margin-bottom:24px;">
-            <p style="margin:0;color:#856404;font-size:13px;">
-              ⚠️ Never share this code with anyone. GrantFlow will never ask for your OTP.
+            <p style="color:#374151;font-size:15px;">Hi <strong>${name || 'there'}</strong>,</p>
+            <p style="color:#374151;font-size:15px;">
+              Use the verification code below to complete your registration. 
+              This code expires in <strong>10 minutes</strong>.
+            </p>
+
+            <div style="text-align:center;margin:32px 0;">
+              <div style="display:inline-block;background:#0f2d57;color:#fff;font-size:36px;font-weight:900;letter-spacing:12px;padding:18px 36px;border-radius:12px;">
+                ${otp}
+              </div>
+            </div>
+
+            <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:12px 16px;margin-bottom:24px;">
+              <p style="margin:0;color:#856404;font-size:13px;">
+                ⚠️ Never share this code with anyone. GrantHub will never ask for your OTP.
+              </p>
+            </div>
+
+            <p style="color:#9ca3af;font-size:12px;text-align:center;">
+              If you didn't request this, you can safely ignore this email.<br/>
+              This code will expire automatically.
+            </p>
+
+            <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;"/>
+            <p style="color:#9ca3af;font-size:11px;text-align:center;margin:0;">
+              Sent from GrantHub · support.granthubngo.com
             </p>
           </div>
-
-          <p style="color:#9ca3af;font-size:12px;text-align:center;">
-            If you didn't request this, you can safely ignore this email.<br/>
-            This code will expire automatically.
-          </p>
-
-          <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;"/>
-          <p style="color:#9ca3af;font-size:11px;text-align:center;margin:0;">
-            Sent from GrantFlow · support.granthubngo.com
-          </p>
-        </div>
-      `,
-    })
+        `,
+      },
+      {
+        headers: {
+          'api-key': process.env.BREVO_API_KEY,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        timeout: 15000, // fail fast instead of hanging
+      }
+    )
 
     res.status(200).json({ message: 'OTP sent successfully to ' + email })
 
   } catch (err) {
-    console.error('sendOtp error:', err.message)
-    res.status(500).json({ message: 'Failed to send OTP', error: err.message })
+    // Brevo errors come back with useful detail in err.response.data
+    const brevoError = err.response?.data || err.message
+    console.error('sendOtp error:', brevoError)
+    res.status(500).json({ message: 'Failed to send OTP', error: brevoError })
   }
 }
-
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/verify-otp
 // Body: { email, otp }
