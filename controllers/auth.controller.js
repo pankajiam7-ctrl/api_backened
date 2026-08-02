@@ -140,7 +140,7 @@ const transporter = nodemailer.createTransport({
 // POST /api/auth/send-otp
 // Body: { email, name }
 // ─────────────────────────────────────────────────────────────────────────────
-
+const axios = require('axios')
 exports.sendOtp = async (req, res) => {
   try {
     const { email, name } = req.body
