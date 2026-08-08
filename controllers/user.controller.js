@@ -218,10 +218,20 @@ exports.downLoadFeature = async (req, res) => {
         }
 
         // 🔑 Map type → field
+        // FIXED: added "loi" and "cover" — these were completely missing,
+        // which is exactly why every LOI/Cover download hit the
+        // "Invalid usage type" branch below and got rejected with 400.
+        // Also added "proposal" as an alias for "create" — the frontend's
+        // QUOTA_FIELD (src/utils/plans.js) sends `type: "proposal"` when
+        // creating a proposal, not `type: "create"`, so that action would
+        // have hit this same bug the first time it was tried.
         const usageMap = {
             download: "sampleDownloadedCount",
             create: "createdCount",
-            tracker: "trackerUsageCount"
+            proposal: "createdCount",
+            tracker: "trackerUsageCount",
+            loi: "LOIcount",
+            cover: "CoverCount"
         };
 
         const field = usageMap[type];
