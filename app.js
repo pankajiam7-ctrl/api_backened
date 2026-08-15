@@ -54,7 +54,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/grants", grantRoutes);
 app.use("/api/proposals", proposalRoutes);
 app.use("/api/admin", adminRoutes);
-app.use('/api/payment/razorpay', razorpayRoutes);
+app.use('/api/razorpay', razorpayRoutes);
 app.use('/api/payment',paymentRoutes);
 app.use('/api/coverLoi',coverLoiRoutes );
 app.use('/api/budget',budgetRoutes );
