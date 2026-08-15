@@ -12,9 +12,9 @@ const {
 } = require("../controllers/razorpay.controller");
 
 router.get("/plans", getPlans);
-router.post("/subscription", protect, createSubscription);
-router.post("/verify", protect, verifySubscription);
-router.post("/cancel", protect, cancelSubscription);
+router.post("/subscription", createSubscription);
+router.post("/verify", verifySubscription);
+router.post("/cancel", cancelSubscription);
 
 // ⚠️ Razorpay webhook needs the RAW body to verify the signature —
 // keep this bodyParser.raw() BEFORE any express.json() touches this path.
