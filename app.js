@@ -54,7 +54,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/grants", grantRoutes);
 app.use("/api/proposals", proposalRoutes);
 app.use("/api/admin", adminRoutes);
-app.get('/api/razo1/plans', (req, res) => {
+app.get("/api/razo1/plans", (req, res) => {
     res.json({
         success: true,
         message: "Plans API working"
