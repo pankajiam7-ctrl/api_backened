@@ -11,7 +11,13 @@ const {
     webhookHandler,
 } = require("../controllers/razorpay.controller");
 
-router.get("/plans", getPlans);
+router.get("/plans", (req, res) => {
+    console.log("🔥 PLANS ROUTE HIT");
+    res.status(200).json({
+        success: true,
+        message: "Plans route is working"
+    });
+});
 router.post("/subscription", protect, createSubscription);
 router.post("/verify", protect, verifySubscription);
 router.post("/cancel", protect, cancelSubscription);

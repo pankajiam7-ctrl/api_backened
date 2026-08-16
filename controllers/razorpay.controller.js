@@ -52,29 +52,8 @@ const PLAN_CONFIG = {
 exports.getPlans = (req, res) => {
     console.log(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
 
-    // const { RAZORPAY_KEY_ID } = process.env;
-    // const monthlyPlanId = PLAN_CONFIG.monthly.planId;
-    // const yearlyPlanId = PLAN_CONFIG.yearly.planId;
-
-    // // Catch missing env vars early with a clear message instead of
-    // // returning { planId: undefined } and failing silently on the frontend.
-    // if (!RAZORPAY_KEY_ID || !monthlyPlanId || !yearlyPlanId) {
-    //     console.error("❌ Razorpay plans misconfigured:", {
-    //         hasKeyId: !!RAZORPAY_KEY_ID,
-    //         hasMonthlyPlanId: !!monthlyPlanId,
-    //         hasYearlyPlanId: !!yearlyPlanId,
-    //     });
-    //     return res.status(500).json({
-    //         success: false,
-    //         message: "Razorpay plans are not configured on the server. Check RAZORPAY_KEY_ID, RAZORPAY_PLAN_ID_MONTHLY, RAZORPAY_PLAN_ID_YEARLY env vars.",
-    //     });
-    // }
-
     res.json({
         success: true,
-        // key: RAZORPAY_KEY_ID,
-        // monthly: { planId: monthlyPlanId, price: PLAN_CONFIG.monthly.price, period: "month" },
-        // yearly: { planId: yearlyPlanId, price: PLAN_CONFIG.yearly.price, period: "year" },
     });
 };
 // ─────────────────────────────────────────────────────────────────────────
